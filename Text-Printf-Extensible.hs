@@ -1,25 +1,28 @@
-{-# LANGUAGE Safe #-}
 {-# LANGUAGE CPP #-}
+#if __GLASGOW_HASKELL__ >= 702
+{-# LANGUAGE Safe #-}
+#endif
+{- Thanks to http://stackoverflow.com/questions/11171325/ for the above. -}
 
 -----------------------------------------------------------------------------
 -- |
--- Module      :  Text.Printf
--- Copyright   :  (c) Lennart Augustsson, 2004-2008
+-- Module      :  Text.Printf.Extended
+-- Copyright   :  (c) Lennart Augustsson and Bart Massey 2013
 -- License     :  BSD-style (see the file libraries/base/LICENSE)
 -- 
 -- Maintainer  :  lennart@augustsson.net
 -- Stability   :  provisional
 -- Portability :  portable
 --
--- A C printf like formatter.
+-- A C printf like formatter. This version has been extended by
+-- Bart Massey as per the recommendations of John Meacham and
+-- Simon Marlow to support extensible formatting for new datatypes.
 --
 -----------------------------------------------------------------------------
 
-{-# Language CPP #-}
-
 module Text.Printf(
    printf, hPrintf,
-   PrintfType, HPrintfType, PrintfArg, IsChar
+   PrintfType, HPrintfType, UFmt(..), PrintfArg(..), IsChar
 ) where
 
 import Prelude
@@ -124,62 +127,30 @@ instance (PrintfArg a, PrintfType r) => PrintfType (a -> r) where
 instance (PrintfArg a, HPrintfType r) => HPrintfType (a -> r) where
     hspr hdl fmts args = \ a -> hspr hdl fmts (toUPrintf a : args)
 
+data Adjustment = LeftAdjust | ZeroPad
+
+{- XXX Phantom type a used to get static checking of
+printf arguments -}
+data UFmt = UFmt {
+  fmtFieldWidth :: Maybe Int,
+  fmtPrecision :: Maybe Int,
+  fmtAdjust :: Maybe Adjustment,
+  fmtSign :: Bool,
+  fmtCharacter :: Char
+  }
+
+type UPrintf = UFmt -> Maybe ShowS
+
 class PrintfArg a where
     toUPrintf :: a -> UPrintf
 
 instance PrintfArg Char where
-    toUPrintf c = UChar c
+    toUPrintf = uPrintfChar
 
 {- not allowed in Haskell 98
 instance PrintfArg String where
     toUPrintf s = UString s
 -}
-instance (IsChar c) => PrintfArg [c] where
-    toUPrintf = UString . map toChar
-
-instance PrintfArg Int where
-    toUPrintf = uInteger
-
-instance PrintfArg Int8 where
-    toUPrintf = uInteger
-
-instance PrintfArg Int16 where
-    toUPrintf = uInteger
-
-instance PrintfArg Int32 where
-    toUPrintf = uInteger
-
-instance PrintfArg Int64 where
-    toUPrintf = uInteger
-
-#ifndef __NHC__
-instance PrintfArg Word where
-    toUPrintf = uInteger
-#endif
-
-instance PrintfArg Word8 where
-    toUPrintf = uInteger
-
-instance PrintfArg Word16 where
-    toUPrintf = uInteger
-
-instance PrintfArg Word32 where
-    toUPrintf = uInteger
-
-instance PrintfArg Word64 where
-    toUPrintf = uInteger
-
-instance PrintfArg Integer where
-    toUPrintf = UInteger 0
-
-instance PrintfArg Float where
-    toUPrintf = UFloat
-
-instance PrintfArg Double where
-    toUPrintf = UDouble
-
-uInteger :: (Integral a, Bounded a) => a -> UPrintf
-uInteger x = UInteger (toInteger $ minBound `asTypeOf` x) (toInteger x)
 
 class IsChar c where
     toChar :: c -> Char
@@ -189,9 +160,58 @@ instance IsChar Char where
     toChar c = c
     fromChar c = c
 
--------------------
+instance (IsChar c) => PrintfArg [c] where
+    toUPrintf = uPrintfString . map toChar
 
-data UPrintf = UChar Char | UString String | UInteger Integer Integer | UFloat Float | UDouble Double
+instance PrintfArg Int where
+    toUPrintf = uPrintfInteger
+
+instance PrintfArg Int8 where
+    toUPrintf = uPrintInteger
+
+instance PrintfArg Int16 where
+    toUPrintf = uPrintInteger
+
+instance PrintfArg Int32 where
+    toUPrintf = uPrintInteger
+
+instance PrintfArg Int64 where
+    toUPrintf = uPrintInteger
+
+#ifndef __NHC__
+instance PrintfArg Word where
+    toUPrintf = uPrintInteger
+#endif
+
+instance PrintfArg Word8 where
+    toUPrintf = uPrintInteger
+
+instance PrintfArg Word16 where
+    toUPrintf = uPrintInteger
+
+instance PrintfArg Word32 where
+    toUPrintf = uPrintInteger
+
+instance PrintfArg Word64 where
+    toUPrintf = uPrintInteger
+
+instance PrintfArg Integer where
+    toUPrintf = uPrintInteger
+
+instance PrintfArg Float where
+    toUPrintf = uPrintfFloat
+
+instance PrintfArg Double where
+    toUPrintf = uPrintfDouble
+
+uPrintfInteger :: (Integral a, Bounded a) => a -> UPrintf
+uPrintfInteger x u = 
+  let m = toInteger $ minBound `asTypeOf` x 
+      x' = toInteger x in
+  
+   
+
+-------------------
 
 uprintf :: String -> [UPrintf] -> String
 uprintf ""       []       = ""
@@ -203,7 +223,9 @@ uprintf (c:cs)   us       = c:uprintf cs us
 
 fmt :: String -> [UPrintf] -> String
 fmt cs us =
-	let (width, prec, ladj, zero, plus, cs', us') = getSpecs False False False cs us
+	let (UFmt {
+                
+                } , cs', us') = getSpecs False False False cs us
 	    adjust (pre, str) = 
 		let lstr = length str
 		    lpre = length pre
@@ -269,7 +291,14 @@ stoi :: Int -> String -> (Int, String)
 stoi a (c:cs) | isDigit c = stoi (a*10 + digitToInt c) cs
 stoi a cs                 = (a, cs)
 
-getSpecs :: Bool -> Bool -> Bool -> String -> [UPrintf] -> (Int, Int, Bool, Bool, Bool, String, [UPrintf])
+adjustment :: Bool -> Bool -> Maybe Adjustment
+adjustment False False = Nothing
+adjustment True False = Just LeftAdjust
+adjustment False True = Just ZeroPad
+adjustment True True = perror "left adjust and zero pad both selected"
+
+getSpecs :: Bool -> Bool -> Bool -> String -> [UPrintf] 
+         -> (UFmt, String, [UPrintf])
 getSpecs _ z s ('-':cs) us = getSpecs True z s cs us
 getSpecs l z _ ('+':cs) us = getSpecs l z True cs us
 getSpecs l _ s ('0':cs) us = getSpecs l True s cs us
@@ -281,21 +310,41 @@ getSpecs l z s ('*':cs) us =
 		    	      	 in  ((p', r), us''')
 		    '.':r     -> (stoi 0 r, us')
 		    _         -> ((-1, cs), us')
-	in  (n, p, l, z, s, cs'', us'')
+	in
+         (UFmt {
+             fmtFieldWidth = n, 
+             fmtPrecision = p, 
+             fmtAdjust = adjustment l z, 
+             fmtSign = s}, cs'', us'')
 getSpecs l z s ('.':cs) us =
 	let ((p, cs'), us') = 
 	        case cs of
 		'*':cs'' -> let (us'', p') = getStar us in ((p', cs''), us'')
                 _ ->        (stoi 0 cs, us)
-	in  (0, p, l, z, s, cs', us')
+	in  
+         (UFmt {
+             fmtFieldWidth = 0, 
+             fmtPrecision = p, 
+             fmtAdjust = adjustment l z, 
+             fmtSign = s}, cs', us')
 getSpecs l z s cs@(c:_) us | isDigit c =
 	let (n, cs') = stoi 0 cs
 	    ((p, cs''), us') = case cs' of
 	    	 	       '.':'*':r -> let (us'', p') = getStar us in ((p', r), us'')
 		               '.':r -> (stoi 0 r, us)
 			       _     -> ((-1, cs'), us)
-	in  (n, p, l, z, s, cs'', us')
-getSpecs l z s cs       us = (0, -1, l, z, s, cs, us)
+	in 
+         (UFmt {
+             fmtFieldWidth = n, 
+             fmtPrecision = p, 
+             fmtAdjust = adjustment l z, 
+             fmtSign = s}, cs'', us')
+getSpecs l z s cs us = 
+  (UFmt {
+      fmtFieldWidth = 0, 
+      fmtPrecision = -1, 
+      fmtAdjust = adjustment l z, 
+      fmtSign = s}, cs, us)
 
 getStar :: [UPrintf] -> ([UPrintf], Int)
 getStar us =
