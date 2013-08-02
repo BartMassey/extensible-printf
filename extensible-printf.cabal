@@ -35,7 +35,7 @@ author:              Bart Massey
 maintainer:          bart@cs.pdx.edu
 
 -- A copyright notice.
--- copyright:           
+copyright:           Copyright (c) 2013 Lennart Augustsson and Bart Massey
 
 category:            Text
 
@@ -44,14 +44,12 @@ build-type:          Simple
 -- Constraint on the version of Cabal needed to build this package.
 cabal-version:       >=1.8
 
-
 library
   -- Modules exported by the library.
-  exposed-modules:     Text.Printf, Text.Printf.Extensible
+  exposed-modules:     Text.Printf.Extensible
   
   -- Modules included in this library but not exported.
   -- other-modules:       
   
   -- Other library packages from which modules are imported.
   build-depends:       base ==4.6.*
-  
