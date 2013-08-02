@@ -23,6 +23,8 @@
 module Text.Printf.Extensible (
    printf, hPrintf,
    PrintfType, HPrintfType, 
+   uprintChar, uprintString, uprintInt,
+   uprintInteger, uprintFloating,
    UFmt(..), PrintfArg(..), IsChar
 ) where
 
