@@ -104,22 +104,39 @@ class PrintfType t where
 class HPrintfType t where
     hspr :: Handle -> String -> [UPrintf] -> t
 
-{- not allowed in Haskell 98
-instance PrintfType String where
-    spr fmt args = uprintf fmt (reverse args)
+{- 
+   These are not allowed in Haskell 98:
+
+     instance PrintfType String where
+       spr fmt args = uprintf fmt (reverse args)
+
+     instance PrintfArg String where
+       toUPrintf s = UString s 
+
+   The workaround is to use class IsChar to get
+   the types right.
 -}
+
+class IsChar c where
+    toChar :: c -> Char
+    fromChar :: Char -> c
+
+instance IsChar Char where
+    toChar c = c
+    fromChar c = c
+
 instance (IsChar c) => PrintfType [c] where
     spr fmts args = map fromChar (uprintf fmts (reverse args))
 
 instance PrintfType (IO a) where
     spr fmts args = do
-	putStr (uprintf fmts (reverse args))
-	return (error "PrintfType (IO a): result should not be used.")
+        putStr (uprintf fmts (reverse args))
+        return (error "PrintfType (IO a): result should not be used.")
 
 instance HPrintfType (IO a) where
     hspr hdl fmts args = do
-	hPutStr hdl (uprintf fmts (reverse args))
-	return (error "HPrintfType (IO a): result should not be used.")
+        hPutStr hdl (uprintf fmts (reverse args))
+        return (error "HPrintfType (IO a): result should not be used.")
 
 instance (PrintfArg a, PrintfType r) => PrintfType (a -> r) where
     spr fmts args = \ a -> spr fmts (toUPrintf a : args)
@@ -129,8 +146,6 @@ instance (PrintfArg a, HPrintfType r) => HPrintfType (a -> r) where
 
 data Adjustment = LeftAdjust | ZeroPad
 
-{- XXX Phantom type a used to get static checking of
-printf arguments -}
 data UFmt = UFmt {
   fmtFieldWidth :: Maybe Int,
   fmtPrecision :: Maybe Int,
@@ -146,19 +161,6 @@ class PrintfArg a where
 
 instance PrintfArg Char where
     toUPrintf = uPrintfChar
-
-{- not allowed in Haskell 98
-instance PrintfArg String where
-    toUPrintf s = UString s
--}
-
-class IsChar c where
-    toChar :: c -> Char
-    fromChar :: Char -> c
-
-instance IsChar Char where
-    toChar c = c
-    fromChar c = c
 
 instance (IsChar c) => PrintfArg [c] where
     toUPrintf = uPrintfString . map toChar
@@ -209,10 +211,6 @@ uPrintfInteger x u =
   let m = toInteger $ minBound `asTypeOf` x 
       x' = toInteger x in
   
-   
-
--------------------
-
 uprintf :: String -> [UPrintf] -> String
 uprintf ""       []       = ""
 uprintf ""       (_:_)    = fmterr
@@ -223,39 +221,45 @@ uprintf (c:cs)   us       = c:uprintf cs us
 
 fmt :: String -> [UPrintf] -> String
 fmt cs us =
-	let (UFmt {
-                
-                } , cs', us') = getSpecs False False False cs us
-	    adjust (pre, str) = 
-		let lstr = length str
-		    lpre = length pre
-		    fill = if lstr+lpre < width then take (width-(lstr+lpre)) (repeat (if zero then '0' else ' ')) else ""
-		in  if ladj then pre ++ str ++ fill else if zero then pre ++ fill ++ str else fill ++ pre ++ str
-            adjust' ("", str) | plus = adjust ("+", str)
-            adjust' ps = adjust ps
-        in
-	case cs' of
-	[]     -> fmterr
-	c:cs'' ->
-	    case us' of
-	    []     -> argerr
-	    u:us'' ->
-		(case c of
-		'c' -> adjust  ("", [toEnum (toint u)])
-		'd' -> adjust' (fmti prec u)
-		'i' -> adjust' (fmti prec u)
-		'x' -> adjust  ("", fmtu 16 prec u)
-		'X' -> adjust  ("", map toUpper $ fmtu 16 prec u)
-		'o' -> adjust  ("", fmtu 8  prec u)
-		'u' -> adjust  ("", fmtu 10 prec u)
-		'e' -> adjust' (dfmt' c prec u)
-		'E' -> adjust' (dfmt' c prec u)
-		'f' -> adjust' (dfmt' c prec u)
-		'g' -> adjust' (dfmt' c prec u)
-		'G' -> adjust' (dfmt' c prec u)
-		's' -> adjust  ("", tostr prec u)
-		_   -> perror ("bad formatting char " ++ [c])
-		 ) ++ uprintf cs'' us''
+  let (ufmt , cs', us') = getSpecs False False False cs us
+      adjust (pre, str) = 
+        let lstr = length str
+            lpre = length pre
+            fill = if lstr+lpre < width 
+                   then take (width-(lstr+lpre)) 
+                          (repeat (if zero then '0' else ' ')) 
+                   else ""
+        in  
+         if ladj 
+         then pre ++ str ++ fill 
+         else if zero 
+              then pre ++ fill ++ str 
+              else fill ++ pre ++ str
+      adjust' ("", str) | plus = adjust ("+", str)
+      adjust' ps = adjust ps
+  in
+   case cs' of
+     []     -> fmterr
+     c:cs'' ->
+       case us' of
+         []     -> argerr
+         u:us'' ->
+           (case c of
+               'c' -> adjust  ("", [toEnum (toint u)])
+               'd' -> adjust' (fmti prec u)
+               'i' -> adjust' (fmti prec u)
+               'x' -> adjust  ("", fmtu 16 prec u)
+               'X' -> adjust  ("", map toUpper $ fmtu 16 prec u)
+               'o' -> adjust  ("", fmtu 8  prec u)
+               'u' -> adjust  ("", fmtu 10 prec u)
+               'e' -> adjust' (dfmt' c prec u)
+               'E' -> adjust' (dfmt' c prec u)
+               'f' -> adjust' (dfmt' c prec u)
+               'g' -> adjust' (dfmt' c prec u)
+               'G' -> adjust' (dfmt' c prec u)
+               's' -> adjust  ("", tostr prec u)
+               _   -> perror ("bad formatting char " ++ [c])
+           ) ++ uprintf cs'' us''
 
 fmti :: Int -> UPrintf -> (String, String)
 fmti prec (UInteger _ i) = if i < 0 then ("-", integral_prec prec (show (-i))) else ("", integral_prec prec (show i))
@@ -281,11 +285,11 @@ tostr _ _		  = baderr
 
 itosb :: Integer -> Integer -> String
 itosb b n = 
-	if n < b then 
-	    [intToDigit $ fromInteger n]
-	else
-	    let (q, r) = quotRem n b in
-	    itosb b q ++ [intToDigit $ fromInteger r]
+        if n < b then 
+            [intToDigit $ fromInteger n]
+        else
+            let (q, r) = quotRem n b in
+            itosb b q ++ [intToDigit $ fromInteger r]
 
 stoi :: Int -> String -> (Int, String)
 stoi a (c:cs) | isDigit c = stoi (a*10 + digitToInt c) cs
@@ -303,37 +307,37 @@ getSpecs _ z s ('-':cs) us = getSpecs True z s cs us
 getSpecs l z _ ('+':cs) us = getSpecs l z True cs us
 getSpecs l _ s ('0':cs) us = getSpecs l True s cs us
 getSpecs l z s ('*':cs) us =
-	let (us', n) = getStar us
-	    ((p, cs''), us'') =
-		    case cs of
+        let (us', n) = getStar us
+            ((p, cs''), us'') =
+                    case cs of
                     '.':'*':r -> let (us''', p') = getStar us'
-		    	      	 in  ((p', r), us''')
-		    '.':r     -> (stoi 0 r, us')
-		    _         -> ((-1, cs), us')
-	in
+                                 in  ((p', r), us''')
+                    '.':r     -> (stoi 0 r, us')
+                    _         -> ((-1, cs), us')
+        in
          (UFmt {
              fmtFieldWidth = n, 
              fmtPrecision = p, 
              fmtAdjust = adjustment l z, 
              fmtSign = s}, cs'', us'')
 getSpecs l z s ('.':cs) us =
-	let ((p, cs'), us') = 
-	        case cs of
-		'*':cs'' -> let (us'', p') = getStar us in ((p', cs''), us'')
+        let ((p, cs'), us') = 
+                case cs of
+                '*':cs'' -> let (us'', p') = getStar us in ((p', cs''), us'')
                 _ ->        (stoi 0 cs, us)
-	in  
+        in  
          (UFmt {
              fmtFieldWidth = 0, 
              fmtPrecision = p, 
              fmtAdjust = adjustment l z, 
              fmtSign = s}, cs', us')
 getSpecs l z s cs@(c:_) us | isDigit c =
-	let (n, cs') = stoi 0 cs
-	    ((p, cs''), us') = case cs' of
-	    	 	       '.':'*':r -> let (us'', p') = getStar us in ((p', r), us'')
-		               '.':r -> (stoi 0 r, us)
-			       _     -> ((-1, cs'), us)
-	in 
+        let (n, cs') = stoi 0 cs
+            ((p, cs''), us') = case cs' of
+                               '.':'*':r -> let (us'', p') = getStar us in ((p', r), us'')
+                               '.':r -> (stoi 0 r, us)
+                               _     -> ((-1, cs'), us)
+        in 
          (UFmt {
              fmtFieldWidth = n, 
              fmtPrecision = p, 
@@ -360,7 +364,7 @@ dfmt' _ _ _           = baderr
 
 dfmt :: (RealFloat a) => Char -> Int -> a -> (String, String)
 dfmt c p d =
-	case (if isUpper c then map toUpper else id) $
+        case (if isUpper c then map toUpper else id) $
              (case toLower c of
                   'e' -> showEFloat
                   'f' -> showFFloat
@@ -368,8 +372,8 @@ dfmt c p d =
                   _   -> error "Printf.dfmt: impossible"
              )
                (if p < 0 then Nothing else Just p) d "" of
-	'-':cs -> ("-", cs)
-	cs     -> ("" , cs)
+        '-':cs -> ("-", cs)
+        cs     -> ("" , cs)
 
 perror :: String -> a
 perror s = error ("Printf.printf: "++s)
