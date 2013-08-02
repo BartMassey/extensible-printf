@@ -166,6 +166,9 @@ instance PrintfArg Char where
 instance (IsChar c) => PrintfArg [c] where
     toUPrintf = uprintString . map toChar
 
+instance PrintfArg Int where
+    toUPrintf = uprintInt
+
 instance PrintfArg Int8 where
     toUPrintf = uprintInt
 
