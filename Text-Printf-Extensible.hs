@@ -6,7 +6,7 @@
 
 -----------------------------------------------------------------------------
 -- |
--- Module      :  Text.Printf.Extended
+-- Module      :  Text.Printf.Extensible
 -- Copyright   :  (c) Lennart Augustsson and Bart Massey 2013
 -- License     :  BSD-style (see the file libraries/base/LICENSE)
 -- 
@@ -20,9 +20,10 @@
 --
 -----------------------------------------------------------------------------
 
-module Text.Printf(
+module Text.Printf.Extensible (
    printf, hPrintf,
-   PrintfType, HPrintfType, UFmt(..), PrintfArg(..), IsChar
+   PrintfType, HPrintfType, 
+   UFmt(..), PrintfArg(..), IsChar
 ) where
 
 import Prelude
@@ -165,37 +166,34 @@ instance PrintfArg Char where
 instance (IsChar c) => PrintfArg [c] where
     toUPrintf = uprintString . map toChar
 
-instance PrintfArg Int where
-    toUPrintf = uprintInteger
-
 instance PrintfArg Int8 where
-    toUPrintf = uprintInteger
+    toUPrintf = uprintInt
 
 instance PrintfArg Int16 where
-    toUPrintf = uprintInteger
+    toUPrintf = uprintInt
 
 instance PrintfArg Int32 where
-    toUPrintf = uprintInteger
+    toUPrintf = uprintInt
 
 instance PrintfArg Int64 where
-    toUPrintf = uprintInteger
+    toUPrintf = uprintInt
 
 #ifndef __NHC__
 instance PrintfArg Word where
-    toUPrintf = uprintInteger
+    toUPrintf = uprintInt
 #endif
 
 instance PrintfArg Word8 where
-    toUPrintf = uprintInteger
+    toUPrintf = uprintInt
 
 instance PrintfArg Word16 where
-    toUPrintf = uprintInteger
+    toUPrintf = uprintInt
 
 instance PrintfArg Word32 where
-    toUPrintf = uprintInteger
+    toUPrintf = uprintInt
 
 instance PrintfArg Word64 where
-    toUPrintf = uprintInteger
+    toUPrintf = uprintInt
 
 instance PrintfArg Integer where
     toUPrintf = uprintInteger
@@ -210,7 +208,7 @@ uprintChar :: Char -> UPrintf
 uprintChar x ufmt =
   case fmtCharacter ufmt of
     'c' -> (adjust ufmt ("", [x]) ++)
-    _   -> uprintInteger (ord x) ufmt
+    _   -> uprintInteger (toInteger $ ord x) ufmt
 
 unprec :: UFmt -> Int
 unprec ufmt = 
@@ -224,20 +222,26 @@ uprintString x ufmt =
     's' -> (adjust ufmt ("", tostr (unprec ufmt) x) ++)
     c   -> badfmterr c
 
-uprintInteger :: (Integral a, Bounded a) => a -> UPrintf
+uprintInt :: (Integral a, Bounded a) => a -> UPrintf
+uprintInt x ufmt =
+  let m = toInteger $ minBound `asTypeOf` x in
+  uprintIntegral (Just m) (toInteger x) ufmt
+  
+uprintInteger :: Integer -> UPrintf
 uprintInteger x ufmt =
-  let m = toInteger $ minBound `asTypeOf` x
-      x' = toInteger x
-      prec = unprec ufmt
-  in
-   case fmtCharacter ufmt of
-     'd' -> (adjustSigned ufmt (fmti prec x) ++)
-     'i' -> (adjustSigned ufmt (fmti prec x) ++)
-     'x' -> (adjust ufmt ("", fmtu 16 prec x) ++)
-     'X' -> (adjust ufmt ("", map toUpper $ fmtu 16 prec x) ++)
-     'o' -> (adjust ufmt ("", fmtu 8  prec x) ++)
-     'u' -> (adjust ufmt ("", fmtu 10 prec x) ++)
-     c   -> badfmterr c
+  uprintIntegral Nothing x ufmt
+
+uprintIntegral :: Maybe Integer -> Integer -> UPrintf
+uprintIntegral m x ufmt =
+  let prec = unprec ufmt in
+  case fmtCharacter ufmt of
+    'd' -> (adjustSigned ufmt (fmti prec x) ++)
+    'i' -> (adjustSigned ufmt (fmti prec x) ++)
+    'x' -> (adjust ufmt ("", fmtu 16 prec m x) ++)
+    'X' -> (adjust ufmt ("", map toUpper $ fmtu 16 prec m x) ++)
+    'o' -> (adjust ufmt ("", fmtu 8 prec m x) ++)
+    'u' -> (adjust ufmt ("", fmtu 10 prec m x) ++)
+    c   -> badfmterr c
 
 uprintFloating :: RealFloat a => a -> UPrintf
 uprintFloating x ufmt =
@@ -252,13 +256,16 @@ uprintFloating x ufmt =
      'G' -> (adjustSigned ufmt (dfmt c prec x) ++)
      _   -> badfmterr c
 
-uprintf :: String -> [UPrintf] -> ShowS
-uprintf ""       []       = id
-uprintf ""       (_:_)    = fmterr
-uprintf ('%':'%':cs) us   = ('%' :) . uprintf cs us
-uprintf ('%':_)  []       = argerr
-uprintf ('%':cs) us@(_:_) = fmt cs us
-uprintf (c:cs)   us       = (c :) . uprintf cs us
+uprintf :: String -> [UPrintf] -> String
+uprintf s us = uprintfs s us ""
+
+uprintfs :: String -> [UPrintf] -> ShowS
+uprintfs ""       []       = id
+uprintfs ""       (_:_)    = fmterr
+uprintfs ('%':'%':cs) us   = ('%' :) . uprintfs cs us
+uprintfs ('%':_)  []       = argerr
+uprintfs ('%':cs) us@(_:_) = fmt cs us
+uprintfs (c:cs)   us       = (c :) . uprintfs cs us
 
 fmt :: String -> [UPrintf] -> ShowS
 fmt cs0 us0 =
@@ -266,7 +273,7 @@ fmt cs0 us0 =
   where
     fmt' (_, [], _) = fmterr
     fmt' (_, _, []) = argerr
-    fmt' (ufmt, cs, u : us) = u ufmt . uprintf cs us
+    fmt' (ufmt, cs, u : us) = u ufmt . uprintfs cs us
 
 adjust :: UFmt -> (String, String) -> String
 adjust ufmt (pre, str) = 
@@ -292,27 +299,27 @@ adjust ufmt (pre, str) =
 
 adjustSigned :: UFmt -> (String, String) -> String
 adjustSigned ufmt ("", str) | fmtSign ufmt = adjust ufmt ("+", str)
-adjustSigned ps = adjust ufmt ps
+adjustSigned ufmt ps = adjust ufmt ps
 
 fmti :: Int -> Integer -> (String, String)
 fmti prec i
   | i < 0 = ("-", integral_prec prec (show (-i))) 
   | otherwise = ("", integral_prec prec (show i))
 
-fmtu :: Integer -> Int -> Integer -> String
-fmtu b prec l i =
-  let i' 
-        | i < 0 = -2 * l + i 
-        | otherwise = i
-  in
-   integral_prec prec (itosb b i')
+fmtu :: Integer -> Int -> Maybe Integer -> Integer -> String
+fmtu b prec _ i | i > 0 =
+  integral_prec prec (itosb b i)
+fmtu b prec (Just m) i =
+  integral_prec prec (itosb b (-2 * m + i))
+fmtu _ _ _ _ =
+  baderr
 
 integral_prec :: Int -> String -> String
 integral_prec prec integral = 
   replicate (prec - (length integral)) '0' ++ integral
 
 tostr :: Int -> String -> String
-tostr n x = if n >= 0 then take n s else s
+tostr n s = if n >= 0 then take n s else s
 
 itosb :: Integer -> Integer -> String
 itosb b n = 
@@ -348,22 +355,22 @@ getSpecs l z s ('*' : cs0) us =
           ((-1, cs0), us')
   in
    (UFmt {
-       fmtFieldWidth = n, 
-       fmtPrecision = p, 
+       fmtFieldWidth = Just n, 
+       fmtPrecision = Just p, 
        fmtAdjust = adjustment l z, 
        fmtSign = s,
-       fmtChar = c}, cs, us'')
+       fmtCharacter = c}, cs, us'')
 getSpecs l z s ('.' : cs0) us =
   let ((p, c : cs), us') = case cs0 of
         '*':cs'' -> let (us'', p') = getStar us in ((p', cs''), us'')
         _ ->        (stoi 0 cs0, us)
   in  
    (UFmt {
-       fmtFieldWidth = 0, 
-       fmtPrecision = p, 
+       fmtFieldWidth = Nothing, 
+       fmtPrecision = Just p, 
        fmtAdjust = adjustment l z, 
        fmtSign = s,
-       fmtChar = c}, cs, us')
+       fmtCharacter = c}, cs, us')
 getSpecs l z s cs0@(c0 : _) us | isDigit c0 =
   let (n, cs') = stoi 0 cs0
       ((p, c : cs), us') = case cs' of
@@ -375,18 +382,20 @@ getSpecs l z s cs0@(c0 : _) us | isDigit c0 =
           ((-1, cs'), us)
   in 
    (UFmt {
-       fmtFieldWidth = n, 
-       fmtPrecision = p, 
+       fmtFieldWidth = Just n, 
+       fmtPrecision = Just p, 
        fmtAdjust = adjustment l z, 
        fmtSign = s,
-       fmtChar = c}, cs, us')
+       fmtCharacter = c}, cs, us')
 getSpecs l z s (c : cs) us = 
   (UFmt {
-      fmtFieldWidth = 0, 
-      fmtPrecision = -1, 
+      fmtFieldWidth = Nothing, 
+      fmtPrecision = Nothing, 
       fmtAdjust = adjustment l z, 
       fmtSign = s,
-      fmtChar = c}, cs, us)
+      fmtCharacter = c}, cs, us)
+getSpecs _ _ _ ""          _  =
+  perror "internal error: getSpecs on empty string"
 
 getStar :: [UPrintf] -> ([UPrintf], Int)
 getStar us =
@@ -408,7 +417,7 @@ dfmt c p d =
         'f' -> showFFloat
         'g' -> showGFloat
         _   -> error "Printf.dfmt: impossible"
-      result = caseConvert $ showFunction p d
+      result = caseConvert $ showFunction p d ""
   in
    case result of
      '-' : cs -> ("-", cs)
