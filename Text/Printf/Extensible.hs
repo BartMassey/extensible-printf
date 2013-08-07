@@ -347,7 +347,7 @@ adjustment :: Bool -> Bool -> Maybe Adjustment
 adjustment False False = Nothing
 adjustment True False = Just LeftAdjust
 adjustment False True = Just ZeroPad
-adjustment True True = perror "left adjust and zero pad both selected"
+adjustment True True = Just LeftAdjust
 
 getSpecs :: Bool -> Bool -> Sign -> String -> [UPrintf] 
          -> (UFmt, String, [UPrintf])
