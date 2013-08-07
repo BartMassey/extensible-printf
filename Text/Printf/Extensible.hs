@@ -115,18 +115,23 @@ class HPrintfType t where
      instance PrintfType String where
        spr fmt args = uprintf fmt (reverse args)
 
-   We have decided we don't care here.
+   I have decided I don't care here, and am
+   going to use [Char] and FlexibleInstances
+   for clarity. This also allows getting the
+   type of printf and hprintf to be IO (), which
+   is important now that GHC gives warnings on
+   ignored returns.
 -}
 
 instance PrintfType [Char] where
     spr fmts args = uprintf fmts (reverse args)
 
-instance PrintfType (IO a) where
+instance PrintfType (IO ()) where
     spr fmts args = do
         putStr (uprintf fmts (reverse args))
         return (error "PrintfType (IO a): result should not be used.")
 
-instance HPrintfType (IO a) where
+instance HPrintfType (IO ()) where
     hspr hdl fmts args = do
         hPutStr hdl (uprintf fmts (reverse args))
         return (error "HPrintfType (IO a): result should not be used.")
