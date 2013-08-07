@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP, FlexibleInstances #-}
 #if __GLASGOW_HASKELL__ >= 702
 {-# LANGUAGE Safe #-}
 #endif
@@ -16,7 +16,9 @@
 --
 -- A C printf like formatter. This version has been extended by
 -- Bart Massey as per the recommendations of John Meacham and
--- Simon Marlow to support extensible formatting for new datatypes.
+-- Simon Marlow to support extensible formatting for new datatypes;
+-- extended to support new output types; and extended to handle
+-- full printf(3) syntax.
 --
 -----------------------------------------------------------------------------
 
@@ -25,7 +27,7 @@ module Text.Printf.Extensible (
    PrintfType, HPrintfType, 
    uprintChar, uprintString, uprintInt,
    uprintInteger, uprintFloating,
-   UFmt(..), PrintfArg(..), IsChar
+   UFmt(..), PrintfArg(..)
 ) where
 
 import Prelude
@@ -113,23 +115,11 @@ class HPrintfType t where
      instance PrintfType String where
        spr fmt args = uprintf fmt (reverse args)
 
-     instance PrintfArg String where
-       toUPrintf s = UString s 
-
-   The workaround is to use class IsChar to get
-   the types right.
+   We have decided we don't care here.
 -}
 
-class IsChar c where
-    toChar :: c -> Char
-    fromChar :: Char -> c
-
-instance IsChar Char where
-    toChar c = c
-    fromChar c = c
-
-instance (IsChar c) => PrintfType [c] where
-    spr fmts args = map fromChar (uprintf fmts (reverse args))
+instance PrintfType [Char] where
+    spr fmts args = uprintf fmts (reverse args)
 
 instance PrintfType (IO a) where
     spr fmts args = do
@@ -165,8 +155,8 @@ class PrintfArg a where
 instance PrintfArg Char where
     toUPrintf = uprintChar
 
-instance (IsChar c) => PrintfArg [c] where
-    toUPrintf = uprintString . map toChar
+instance PrintfArg [Char] where
+    toUPrintf = uprintString
 
 instance PrintfArg Int where
     toUPrintf = uprintInt
