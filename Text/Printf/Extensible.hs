@@ -144,11 +144,13 @@ instance (PrintfArg a, HPrintfType r) => HPrintfType (a -> r) where
 
 data Adjustment = LeftAdjust | ZeroPad
 
+data Sign = SignPlus | SignSpace | SignNothing
+
 data UFmt = UFmt {
   fmtFieldWidth :: Maybe Int,
   fmtPrecision :: Maybe Int,
   fmtAdjust :: Maybe Adjustment,
-  fmtSign :: Bool,
+  fmtSign :: Sign,
   fmtCharacter :: Char
   }
 
@@ -273,7 +275,7 @@ uprintfs (c:cs)   us       = (c :) . uprintfs cs us
 
 fmt :: String -> [UPrintf] -> ShowS
 fmt cs0 us0 =
-  fmt' $ getSpecs False False False cs0 us0
+  fmt' $ getSpecs False False SignNothing cs0 us0
   where
     fmt' (_, _, []) = argerr
     fmt' (ufmt, cs, u : us) = u ufmt . uprintfs cs us
@@ -301,8 +303,12 @@ adjust ufmt (pre, str) =
         else fill ++ pre ++ str
 
 adjustSigned :: UFmt -> (String, String) -> String
-adjustSigned ufmt ("", str) | fmtSign ufmt = adjust ufmt ("+", str)
-adjustSigned ufmt ps = adjust ufmt ps
+adjustSigned ufmt@(UFmt {fmtSign = SignPlus}) ("", str) = 
+  adjust ufmt ("+", str)
+adjustSigned ufmt@(UFmt {fmtSign = SignSpace}) ("", str) = 
+  adjust ufmt (" ", str)
+adjustSigned ufmt ps = 
+  adjust ufmt ps
 
 fmti :: Int -> Integer -> (String, String)
 fmti prec i
@@ -342,10 +348,11 @@ adjustment True False = Just LeftAdjust
 adjustment False True = Just ZeroPad
 adjustment True True = perror "left adjust and zero pad both selected"
 
-getSpecs :: Bool -> Bool -> Bool -> String -> [UPrintf] 
+getSpecs :: Bool -> Bool -> Sign -> String -> [UPrintf] 
          -> (UFmt, String, [UPrintf])
 getSpecs _ z s ('-' : cs0) us = getSpecs True z s cs0 us
-getSpecs l z _ ('+' : cs0) us = getSpecs l z True cs0 us
+getSpecs l z _ ('+' : cs0) us = getSpecs l z SignPlus cs0 us
+getSpecs l z _ (' ' : cs0) us = getSpecs l z SignSpace cs0 us
 getSpecs l _ s ('0' : cs0) us = getSpecs l True s cs0 us
 getSpecs l z s ('*' : cs0) us =
   let (us', n) = getStar us
@@ -406,7 +413,7 @@ getStar us =
         fmtFieldWidth = Nothing,
         fmtPrecision = Nothing,
         fmtAdjust = Nothing,
-        fmtSign = False,
+        fmtSign = SignNothing,
         fmtCharacter = 'd' } in
   case us of
     [] -> argerr
