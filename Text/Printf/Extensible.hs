@@ -241,6 +241,10 @@ uprintIntegral m x ufmt =
     'X' -> (adjust ufmt ("", map toUpper $ fmtu 16 prec m x) ++)
     'o' -> (adjust ufmt ("", fmtu 8 prec m x) ++)
     'u' -> (adjust ufmt ("", fmtu 10 prec m x) ++)
+    'c' | x >= fromIntegral (ord (minBound :: Char)) && 
+          x <= fromIntegral (ord (maxBound :: Char)) ->
+            uprintChar (chr $ fromIntegral x) ufmt
+    'c' -> perror "illegal int to char conversion"
     c   -> badfmterr c
 
 uprintFloating :: RealFloat a => a -> UPrintf
