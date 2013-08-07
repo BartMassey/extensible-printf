@@ -258,6 +258,7 @@ uprintFloating x ufmt =
      'e' -> (adjustSigned ufmt (dfmt c prec x) ++)
      'E' -> (adjustSigned ufmt (dfmt c prec x) ++)
      'f' -> (adjustSigned ufmt (dfmt c prec x) ++)
+     'F' -> (adjustSigned ufmt (dfmt c prec x) ++)
      'g' -> (adjustSigned ufmt (dfmt c prec x) ++)
      'G' -> (adjustSigned ufmt (dfmt c prec x) ++)
      _   -> badfmterr c
