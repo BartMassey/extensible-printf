@@ -438,7 +438,7 @@ perror s = error ("Printf.printf: "++s)
 
 badfmterr :: Char -> a
 badfmterr c =
-  perror $ "bad formatting char " ++ [c]
+  perror $ "bad formatting char " ++ show c
 
 fmterr, argerr, baderr :: a
 fmterr = perror "formatting string ended prematurely"
