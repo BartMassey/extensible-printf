@@ -271,7 +271,6 @@ fmt :: String -> [UPrintf] -> ShowS
 fmt cs0 us0 =
   fmt' $ getSpecs False False False cs0 us0
   where
-    fmt' (_, [], _) = fmterr
     fmt' (_, _, []) = argerr
     fmt' (ufmt, cs, u : us) = u ufmt . uprintfs cs us
 
@@ -394,8 +393,8 @@ getSpecs l z s (c : cs) us =
       fmtAdjust = adjustment l z, 
       fmtSign = s,
       fmtCharacter = c}, cs, us)
-getSpecs _ _ _ ""          _  =
-  perror "internal error: getSpecs on empty string"
+getSpecs _ _ _ ""       _  =
+  fmterr
 
 getStar :: [UPrintf] -> ([UPrintf], Int)
 getStar us =
