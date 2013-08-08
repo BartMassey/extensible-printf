@@ -340,9 +340,12 @@ itosb b n =
             let (q, r) = quotRem n b in
             itosb b q ++ [intToDigit $ fromInteger r]
 
-stoi :: Int -> String -> (Int, String)
-stoi a (c:cs) | isDigit c = stoi (a*10 + digitToInt c) cs
-stoi a cs                 = (a, cs)
+stoi :: String -> (Int, String)
+stoi cs =
+  let (as, cs') = span isDigit cs in
+  case as of
+    "" -> (0, cs')
+    _ -> (read as, cs')
 
 adjustment :: Bool -> Bool -> Maybe Adjustment
 adjustment False False = Nothing
@@ -364,7 +367,7 @@ getSpecs l z s a ('*' : cs0) us =
         '.':'*':r -> 
           let (us''', p') = getStar us' in ((p', r), us''')
         '.':r -> 
-          (stoi 0 r, us')
+          (stoi r, us')
         _ -> 
           ((-1, cs0), us')
   in
@@ -378,7 +381,7 @@ getSpecs l z s a ('*' : cs0) us =
 getSpecs l z s a ('.' : cs0) us =
   let ((p, c : cs), us') = case cs0 of
         '*':cs'' -> let (us'', p') = getStar us in ((p', cs''), us'')
-        _ ->        (stoi 0 cs0, us)
+        _ ->        (stoi cs0, us)
   in  
    (UFmt {
        fmtFieldWidth = Nothing, 
@@ -388,12 +391,12 @@ getSpecs l z s a ('.' : cs0) us =
        fmtAlternate = a,
        fmtCharacter = c}, cs, us')
 getSpecs l z s a cs0@(c0 : _) us | isDigit c0 =
-  let (n, cs') = stoi 0 cs0
+  let (n, cs') = stoi cs0
       ((p, c : cs), us') = case cs' of
         '.' : '*' : r ->
           let (us'', p') = getStar us in ((p', r), us'')
         '.' : r -> 
-          (stoi 0 r, us)
+          (stoi r, us)
         _ -> 
           ((-1, cs'), us)
   in 
