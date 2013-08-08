@@ -151,6 +151,7 @@ data UFmt = UFmt {
   fmtPrecision :: Maybe Int,
   fmtAdjust :: Maybe Adjustment,
   fmtSign :: Sign,
+  fmtAlternate :: Bool,
   fmtCharacter :: Char
   }
 
@@ -276,7 +277,7 @@ uprintfs (c:cs)   us       = (c :) . uprintfs cs us
 
 fmt :: String -> [UPrintf] -> ShowS
 fmt cs0 us0 =
-  fmt' $ getSpecs False False SignNothing cs0 us0
+  fmt' $ getSpecs False False SignNothing False cs0 us0
   where
     fmt' (_, _, []) = argerr
     fmt' (ufmt, cs, u : us) = u ufmt . uprintfs cs us
@@ -349,13 +350,14 @@ adjustment True False = Just LeftAdjust
 adjustment False True = Just ZeroPad
 adjustment True True = Just LeftAdjust
 
-getSpecs :: Bool -> Bool -> Sign -> String -> [UPrintf] 
+getSpecs :: Bool -> Bool -> Sign -> Bool -> String -> [UPrintf] 
          -> (UFmt, String, [UPrintf])
-getSpecs _ z s ('-' : cs0) us = getSpecs True z s cs0 us
-getSpecs l z _ ('+' : cs0) us = getSpecs l z SignPlus cs0 us
-getSpecs l z _ (' ' : cs0) us = getSpecs l z SignSpace cs0 us
-getSpecs l _ s ('0' : cs0) us = getSpecs l True s cs0 us
-getSpecs l z s ('*' : cs0) us =
+getSpecs _ z s a ('-' : cs0) us = getSpecs True z s a cs0 us
+getSpecs l z _ a ('+' : cs0) us = getSpecs l z SignPlus a cs0 us
+getSpecs l z _ a (' ' : cs0) us = getSpecs l z SignSpace a cs0 us
+getSpecs l _ s a ('0' : cs0) us = getSpecs l True s a cs0 us
+getSpecs l z s _ ('#' : cs0) us = getSpecs l z s True cs0 us
+getSpecs l z s a ('*' : cs0) us =
   let (us', n) = getStar us
       ((p, c : cs), us'') = case cs0 of
         '.':'*':r -> 
@@ -370,8 +372,9 @@ getSpecs l z s ('*' : cs0) us =
        fmtPrecision = Just p, 
        fmtAdjust = adjustment l z, 
        fmtSign = s,
+       fmtAlternate = a,
        fmtCharacter = c}, cs, us'')
-getSpecs l z s ('.' : cs0) us =
+getSpecs l z s a ('.' : cs0) us =
   let ((p, c : cs), us') = case cs0 of
         '*':cs'' -> let (us'', p') = getStar us in ((p', cs''), us'')
         _ ->        (stoi 0 cs0, us)
@@ -381,8 +384,9 @@ getSpecs l z s ('.' : cs0) us =
        fmtPrecision = Just p, 
        fmtAdjust = adjustment l z, 
        fmtSign = s,
+       fmtAlternate = a,
        fmtCharacter = c}, cs, us')
-getSpecs l z s cs0@(c0 : _) us | isDigit c0 =
+getSpecs l z s a cs0@(c0 : _) us | isDigit c0 =
   let (n, cs') = stoi 0 cs0
       ((p, c : cs), us') = case cs' of
         '.' : '*' : r ->
@@ -397,15 +401,17 @@ getSpecs l z s cs0@(c0 : _) us | isDigit c0 =
        fmtPrecision = Just p, 
        fmtAdjust = adjustment l z, 
        fmtSign = s,
+       fmtAlternate = a,
        fmtCharacter = c}, cs, us')
-getSpecs l z s (c : cs) us = 
+getSpecs l z s a (c : cs) us = 
   (UFmt {
       fmtFieldWidth = Nothing, 
       fmtPrecision = Nothing, 
       fmtAdjust = adjustment l z, 
       fmtSign = s,
+      fmtAlternate = a,
       fmtCharacter = c}, cs, us)
-getSpecs _ _ _ ""       _  =
+getSpecs _ _ _ _ ""       _  =
   fmterr
 
 getStar :: [UPrintf] -> ([UPrintf], Int)
@@ -415,6 +421,7 @@ getStar us =
         fmtPrecision = Nothing,
         fmtAdjust = Nothing,
         fmtSign = SignNothing,
+        fmtAlternate = False,
         fmtCharacter = 'd' } in
   case us of
     [] -> argerr
