@@ -350,6 +350,7 @@ adjustment True False = Just LeftAdjust
 adjustment False True = Just ZeroPad
 adjustment True True = Just LeftAdjust
 
+-- XXX need to ignore length specifiers "hlLqjzt"
 getSpecs :: Bool -> Bool -> Sign -> Bool -> String -> [UPrintf] 
          -> (UFmt, String, [UPrintf])
 getSpecs _ z s a ('-' : cs0) us = getSpecs True z s a cs0 us
