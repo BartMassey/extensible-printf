@@ -1,0 +1,15 @@
+# Extensible-Printf
+Copyright © 2013 Bart Massey
+
+This is a Haskell `Text.Printf` implementation enhanced to
+allow extending `printf` to new datatypes. It was inspired
+by my need for such a thing, and by finding this two-message
+email-list
+[thread](http://comments.gmane.org/gmane.comp.lang.haskell.libraries/4726)
+from May 2006 in which John Meacham and Simon Marlow suggest
+an implementation.
+
+This work is reasonably well-documented in Haddock, and is
+under a 3-clause BSD license as per Lennart Augustsson's
+original implementation of `Text.Printf`, from which most
+of the code was taken, and much was heavily modified.

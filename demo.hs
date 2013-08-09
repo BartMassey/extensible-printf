@@ -6,13 +6,15 @@ import Text.Printf.Extensible
 newtype Unary = Unary Int
 
 instance PrintfArg Unary where
-  toUPrintf (Unary i) ufmt = 
+  toField (Unary i) ufmt =
     case ufmt of
-      UFmt {fmtCharacter = 'z'} ->
-        uprintString (replicate i '*') (ufmt {fmtCharacter = 's'})
+      FieldFormat {fieldChar = 'z'} ->
+        let (s, i') = if i >= 0 then ("", i) else ("-", (-i)) in
+        formatString (s ++ replicate i' '*') (ufmt {fieldChar = 's'})
       _ -> 
-        uprintInt i ufmt
+        formatInt i ufmt
 
 main :: IO ()
 main = do
-  printf "%s %d %d %z %d\n" "hello" (1 :: Int) 'a' (Unary 3) (Unary 5)
+  printf "%s %d %c %d %z %d\n"
+    "hello" (1 :: Int) 'a' 'b' (Unary (-3)) (Unary 5)
