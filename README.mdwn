@@ -9,6 +9,16 @@ email-list
 from May 2006 in which John Meacham and Simon Marlow suggest
 an implementation.
 
+The implementation has also been enhance to allow most of
+the formatting syntax of C printf(3).
+
+The tests are not here. Rather, they are on Github in the
+package
+[printf-tests](http://github.com/BartMassey/printf-tests).
+This is because they grew into an elaborate project of
+their own, and are intended to work with multiple and
+multilingual implementations of printf().
+
 This work is reasonably well-documented in Haddock, and is
 under a 3-clause BSD license as per Lennart Augustsson's
 original implementation of `Text.Printf`, from which most
