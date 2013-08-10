@@ -8,9 +8,9 @@ newtype Unary = Unary Int
 instance PrintfArg Unary where
   toField (Unary i) ufmt =
     case ufmt of
-      FieldFormat {fieldChar = 'z'} ->
+      FieldFormat {fmtChar = 'z'} ->
         let (s, i') = if i >= 0 then ("", i) else ("-", (-i)) in
-        formatString (s ++ replicate i' '*') (ufmt {fieldChar = 's'})
+        formatString (s ++ replicate i' '*') (ufmt {fmtChar = 's'})
       _ -> 
         formatInt i ufmt
 

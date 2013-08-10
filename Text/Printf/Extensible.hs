@@ -153,15 +153,15 @@ data Sign = SignPlus | SignSpace | SignNothing
 -- | Description of field formatting for 'toField'. See UNIX `printf`(3)
 -- for a description of how field formatting works.
 data FieldFormat = FieldFormat {
-  fieldWidth :: Maybe Int,          -- ^ Total width of the field.
-  fieldPrecision :: Maybe Int,      -- ^ A secondary field width specifier.
-  fieldAdjust :: Maybe Adjustment,  -- ^ Kind of filling or padding to be done.
-  fieldSign :: Sign,                -- ^ Whether to insist on a plus sign for
+  fmtWidth :: Maybe Int,          -- ^ Total width of the field.
+  fmtPrecision :: Maybe Int,      -- ^ A secondary field width specifier.
+  fmtAdjust :: Maybe Adjustment,  -- ^ Kind of filling or padding to be done.
+  fmtSign :: Sign,                -- ^ Whether to insist on a plus sign for
                                     --   positive numbers.
-  fieldAlternate :: Bool,           -- ^ Indicates an "alternate format".
+  fmtAlternate :: Bool,           -- ^ Indicates an "alternate format".
                                     --   See printf(3) for the details,
                                     --   which vary by argument spec.
-  fieldCharacter :: Char            -- ^ The format character 'printf' was
+  fmtChar :: Char            -- ^ The format character 'printf' was
                                     --   invoked with. 'toField' should
                                     --   fail unless this character matches
                                     --   the type. It is normal to handle
@@ -225,20 +225,20 @@ instance PrintfArg Double where
 -- | Formatter for 'Char' values.
 formatChar :: Char -> FieldFormat -> ShowS
 formatChar x ufmt =
-  case fieldCharacter ufmt of
+  case fmtChar ufmt of
     'c' -> (adjust ufmt ("", [x]) ++)
     _   -> formatInteger (toInteger $ ord x) ufmt
 
 unprec :: FieldFormat -> Int
 unprec ufmt = 
-  case fieldPrecision ufmt of
+  case fmtPrecision ufmt of
     Just p -> p
     Nothing -> -1
 
 -- | Formatter for 'String' values.
 formatString :: String -> FieldFormat -> ShowS
 formatString x ufmt =
-  case fieldCharacter ufmt of
+  case fmtChar ufmt of
     's' -> (adjust ufmt ("", tostr (unprec ufmt) x) ++)
     c   -> badfmterr c
 
@@ -256,7 +256,7 @@ formatInteger x ufmt =
 formatIntegral :: Maybe Integer -> Integer -> FieldFormat -> ShowS
 formatIntegral m x ufmt =
   let prec = unprec ufmt in
-  case fieldCharacter ufmt of
+  case fmtChar ufmt of
     'd' -> (adjustSigned ufmt (fmti prec x) ++)
     'i' -> (adjustSigned ufmt (fmti prec x) ++)
     'x' -> (adjust ufmt ("", fmtu 16 prec m x) ++)
@@ -272,8 +272,8 @@ formatIntegral m x ufmt =
 -- | Formatter for 'RealFloat' values.
 formatRealFloat :: RealFloat a => a -> FieldFormat -> ShowS
 formatRealFloat x ufmt =
-  let c = fieldCharacter ufmt
-      prec = fieldPrecision ufmt
+  let c = fmtChar ufmt
+      prec = fmtPrecision ufmt
   in
    case c of
      'e' -> (adjustSigned ufmt (dfmt c prec x) ++)
@@ -308,13 +308,13 @@ adjust :: FieldFormat -> (String, String) -> String
 adjust ufmt (pre, str) = 
   let lstr = length str
       lpre = length pre
-      zero = case fieldAdjust ufmt of
+      zero = case fmtAdjust ufmt of
         Just ZeroPad -> True
         _ -> False
-      left = case fieldAdjust ufmt of
+      left = case fmtAdjust ufmt of
         Just LeftAdjust -> True
         _ -> False
-      fill = case fieldWidth ufmt of
+      fill = case fmtWidth ufmt of
         Just width | lstr + lpre < width ->
           let fillchar = if zero then '0' else ' ' in
           replicate (width - (lstr + lpre)) fillchar
@@ -327,9 +327,9 @@ adjust ufmt (pre, str) =
         else fill ++ pre ++ str
 
 adjustSigned :: FieldFormat -> (String, String) -> String
-adjustSigned ufmt@(FieldFormat {fieldSign = SignPlus}) ("", str) = 
+adjustSigned ufmt@(FieldFormat {fmtSign = SignPlus}) ("", str) = 
   adjust ufmt ("+", str)
-adjustSigned ufmt@(FieldFormat {fieldSign = SignSpace}) ("", str) = 
+adjustSigned ufmt@(FieldFormat {fmtSign = SignSpace}) ("", str) = 
   adjust ufmt (" ", str)
 adjustSigned ufmt ps = 
   adjust ufmt ps
@@ -394,24 +394,24 @@ getSpecs l z s a ('*' : cs0) us =
           ((-1, cs0), us')
   in
    (FieldFormat {
-       fieldWidth = Just n, 
-       fieldPrecision = Just p, 
-       fieldAdjust = adjustment l z, 
-       fieldSign = s,
-       fieldAlternate = a,
-       fieldCharacter = c}, cs, us'')
+       fmtWidth = Just n, 
+       fmtPrecision = Just p, 
+       fmtAdjust = adjustment l z, 
+       fmtSign = s,
+       fmtAlternate = a,
+       fmtChar = c}, cs, us'')
 getSpecs l z s a ('.' : cs0) us =
   let ((p, c : cs), us') = case cs0 of
         '*':cs'' -> let (us'', p') = getStar us in ((p', cs''), us'')
         _ ->        (stoi cs0, us)
   in  
    (FieldFormat {
-       fieldWidth = Nothing, 
-       fieldPrecision = Just p, 
-       fieldAdjust = adjustment l z, 
-       fieldSign = s,
-       fieldAlternate = a,
-       fieldCharacter = c}, cs, us')
+       fmtWidth = Nothing, 
+       fmtPrecision = Just p, 
+       fmtAdjust = adjustment l z, 
+       fmtSign = s,
+       fmtAlternate = a,
+       fmtChar = c}, cs, us')
 getSpecs l z s a cs0@(c0 : _) us | isDigit c0 =
   let (n, cs') = stoi cs0
       ((p, c : cs), us') = case cs' of
@@ -423,32 +423,32 @@ getSpecs l z s a cs0@(c0 : _) us | isDigit c0 =
           ((-1, cs'), us)
   in 
    (FieldFormat {
-       fieldWidth = Just n, 
-       fieldPrecision = Just p, 
-       fieldAdjust = adjustment l z, 
-       fieldSign = s,
-       fieldAlternate = a,
-       fieldCharacter = c}, cs, us')
+       fmtWidth = Just n, 
+       fmtPrecision = Just p, 
+       fmtAdjust = adjustment l z, 
+       fmtSign = s,
+       fmtAlternate = a,
+       fmtChar = c}, cs, us')
 getSpecs l z s a (c : cs) us = 
   (FieldFormat {
-      fieldWidth = Nothing, 
-      fieldPrecision = Nothing, 
-      fieldAdjust = adjustment l z, 
-      fieldSign = s,
-      fieldAlternate = a,
-      fieldCharacter = c}, cs, us)
+      fmtWidth = Nothing, 
+      fmtPrecision = Nothing, 
+      fmtAdjust = adjustment l z, 
+      fmtSign = s,
+      fmtAlternate = a,
+      fmtChar = c}, cs, us)
 getSpecs _ _ _ _ ""       _  =
   fmterr
 
 getStar :: [UPrintf] -> ([UPrintf], Int)
 getStar us =
   let ufmt = FieldFormat {
-        fieldWidth = Nothing,
-        fieldPrecision = Nothing,
-        fieldAdjust = Nothing,
-        fieldSign = SignNothing,
-        fieldAlternate = False,
-        fieldCharacter = 'd' } in
+        fmtWidth = Nothing,
+        fmtPrecision = Nothing,
+        fmtAdjust = Nothing,
+        fmtSign = SignNothing,
+        fmtAlternate = False,
+        fmtChar = 'd' } in
   case us of
     [] -> argerr
     nu : us' -> (us', read (nu ufmt ""))
