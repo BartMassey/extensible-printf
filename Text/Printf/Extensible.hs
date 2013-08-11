@@ -253,6 +253,10 @@ formatInteger :: Integer -> FieldFormat -> ShowS
 formatInteger x ufmt =
   formatIntegral Nothing x ufmt
 
+-- All formatting for integral types is handled
+-- consistently.  The only difference is between Integer and
+-- bounded types; this difference is handled by the 'm'
+-- argument containing the bound.
 formatIntegral :: Maybe Integer -> Integer -> FieldFormat -> ShowS
 formatIntegral m x ufmt =
   let prec = unprec ufmt in
@@ -284,6 +288,8 @@ formatRealFloat x ufmt =
      'G' -> (adjustSigned ufmt (dfmt c prec x) ++)
      _   -> badfmterr c
 
+-- This is just a lazy notational convenience left over from
+-- old code. It should probably be erased.
 type UPrintf = FieldFormat -> ShowS
 
 -- Given a format string and a list of functions that take
