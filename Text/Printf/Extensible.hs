@@ -152,18 +152,19 @@ data FormatSign = SignPlus | SignSpace | SignNothing
 data FieldFormat = FieldFormat {
   fmtWidth :: Maybe Int,          -- ^ Total width of the field.
   fmtPrecision :: Maybe Int,      -- ^ A secondary field width specifier.
-  fmtAdjust :: Maybe FormatAdjustment,  -- ^ Kind of filling or padding to be done.
-  fmtSign :: FormatSign,                -- ^ Whether to insist on a plus sign for
-                                    --   positive numbers.
+  fmtAdjust :: Maybe FormatAdjustment,  -- ^ Kind of filling or padding 
+                                        --   to be done.
+  fmtSign :: FormatSign,                -- ^ Whether to insist on a plus 
+                                        --   sign for positive numbers.
   fmtAlternate :: Bool,           -- ^ Indicates an "alternate format".
-                                    --   See printf(3) for the details,
-                                    --   which vary by argument spec.
-  fmtChar :: Char            -- ^ The format character 'printf' was
-                                    --   invoked with. 'toField' should
-                                    --   fail unless this character matches
-                                    --   the type. It is normal to handle
-                                    --   many different format characters for
-                                    --   a single type.
+                                  --   See printf(3) for the details,
+                                  --   which vary by argument spec.
+  fmtChar :: Char                 -- ^ The format character 'printf' was
+                                  --   invoked with. 'toField' should
+                                  --   fail unless this character matches
+                                  --   the type. It is normal to handle
+                                  --   many different format characters for
+                                  --   a single type.
   }
 
 -- | Typeclass of 'printf'-formattable values. The 'toField' method
@@ -283,9 +284,17 @@ formatRealFloat x ufmt =
 
 type UPrintf = FieldFormat -> ShowS
 
+-- Given a format string and a list of functions that take
+-- formatting information to a field string (the actual
+-- field value having already been baked into each of these
+-- functions before delivery), return the actual formatted
+-- text string.
 uprintf :: String -> [UPrintf] -> String
 uprintf s us = uprintfs s us ""
 
+-- This function does the actual work, producing a ShowS
+-- instead of a string, for future expansion and for
+-- misguided efficiency.
 uprintfs :: String -> [UPrintf] -> ShowS
 uprintfs ""       []       = id
 uprintfs ""       (_:_)    = fmterr
@@ -294,6 +303,11 @@ uprintfs ('%':_)  []       = argerr
 uprintfs ('%':cs) us@(_:_) = fmt cs us
 uprintfs (c:cs)   us       = (c :) . uprintfs cs us
 
+-- Given a suffix of the format string starting just after
+-- the percent sign, and the list of remaining unprocessed
+-- arguments in the form described above, format the portion
+-- of the output described by this field description, and
+-- then continue with 'uprintfs'.
 fmt :: String -> [UPrintf] -> ShowS
 fmt cs0 us0 =
   fmt' $ getSpecs False False SignNothing False cs0 us0
