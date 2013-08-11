@@ -28,7 +28,8 @@ module Text.Printf.Extensible (
    PrintfType, HPrintfType, 
    formatChar, formatString, formatInt,
    formatInteger, formatRealFloat,
-   FieldFormat(..), PrintfArg(..)
+   FieldFormat(..), PrintfArg(..),
+   FormatAdjustment(..), FormatSign(..)
 ) where
 
 import Prelude
@@ -142,17 +143,17 @@ instance (PrintfArg a, HPrintfType r) => HPrintfType (a -> r) where
 
 -- | Whether to left-adjust or zero-pad a field. These are
 -- mutually exclusive. 
-data Adjustment = LeftAdjust | ZeroPad
+data FormatAdjustment = LeftAdjust | ZeroPad
 
-data Sign = SignPlus | SignSpace | SignNothing
+data FormatSign = SignPlus | SignSpace | SignNothing
 
 -- | Description of field formatting for 'toField'. See UNIX `printf`(3)
 -- for a description of how field formatting works.
 data FieldFormat = FieldFormat {
   fmtWidth :: Maybe Int,          -- ^ Total width of the field.
   fmtPrecision :: Maybe Int,      -- ^ A secondary field width specifier.
-  fmtAdjust :: Maybe Adjustment,  -- ^ Kind of filling or padding to be done.
-  fmtSign :: Sign,                -- ^ Whether to insist on a plus sign for
+  fmtAdjust :: Maybe FormatAdjustment,  -- ^ Kind of filling or padding to be done.
+  fmtSign :: FormatSign,                -- ^ Whether to insist on a plus sign for
                                     --   positive numbers.
   fmtAlternate :: Bool,           -- ^ Indicates an "alternate format".
                                     --   See printf(3) for the details,
@@ -365,14 +366,14 @@ stoi cs =
     "" -> (0, cs')
     _ -> (read as, cs')
 
-adjustment :: Bool -> Bool -> Maybe Adjustment
+adjustment :: Bool -> Bool -> Maybe FormatAdjustment
 adjustment False False = Nothing
 adjustment True False = Just LeftAdjust
 adjustment False True = Just ZeroPad
 adjustment True True = Just LeftAdjust
 
 -- XXX need to ignore length specifiers "hlLqjzt"
-getSpecs :: Bool -> Bool -> Sign -> Bool -> String -> [UPrintf] 
+getSpecs :: Bool -> Bool -> FormatSign -> Bool -> String -> [UPrintf] 
          -> (FieldFormat, String, [UPrintf])
 getSpecs _ z s a ('-' : cs0) us = getSpecs True z s a cs0 us
 getSpecs l z _ a ('+' : cs0) us = getSpecs l z SignPlus a cs0 us
