@@ -407,7 +407,6 @@ adjustment True False = Just LeftAdjust
 adjustment False True = Just ZeroPad
 adjustment True True = Just LeftAdjust
 
--- XXX need to ignore length specifiers "hlLqjzt"
 getSpecs :: Bool -> Bool -> FormatSign -> Bool -> String -> [UPrintf] 
          -> (FieldFormat, String, [UPrintf])
 getSpecs _ z s a ('-' : cs0) us = getSpecs True z s a cs0 us
@@ -461,6 +460,8 @@ getSpecs l z s a cs0@(c0 : _) us | isDigit c0 =
        fmtSign = s,
        fmtAlternate = a,
        fmtChar = c}, cs, us')
+getSpecs l z s a (c : cs) us | c `elem` "hlLqjzt" =
+  getSpecs l z s a cs us
 getSpecs l z s a (c : cs) us = 
   (FieldFormat {
       fmtWidth = Nothing, 
