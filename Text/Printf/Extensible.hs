@@ -132,9 +132,7 @@ instance PrintfType (IO ()) where
     spr fmts args = putStr (uprintf fmts (reverse args))
 
 instance HPrintfType (IO ()) where
-    hspr hdl fmts args = do
-        hPutStr hdl (uprintf fmts (reverse args))
-        return (error "HPrintfType (IO a): result should not be used.")
+    hspr hdl fmts args = hPutStr hdl (uprintf fmts (reverse args))
 
 instance (PrintfArg a, PrintfType r) => PrintfType (a -> r) where
     spr fmts args = \ a -> spr fmts (toField a : args)
