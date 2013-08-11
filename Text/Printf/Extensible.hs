@@ -237,7 +237,9 @@ unprec ufmt =
 formatString :: String -> FieldFormat -> ShowS
 formatString x ufmt =
   case fmtChar ufmt of
-    's' -> (adjust ufmt ("", tostr (unprec ufmt) x) ++)
+    's' -> (adjust ufmt ("", trunc (unprec ufmt)) ++)
+           where
+             trunc n = if n >= 0 then take n x else x
     c   -> badfmterr c
 
 -- | Formatter for 'Int' values.
@@ -315,6 +317,11 @@ fmt cs0 us0 =
     fmt' (_, _, []) = argerr
     fmt' (ufmt, cs, u : us) = u ufmt . uprintfs cs us
 
+-- Given field formatting information, and a tuple
+-- consisting of a prefix (for example, a minus sign) that
+-- is supposed to go before the argument value and a string
+-- representing the value, return the properly padded and
+-- formatted result.
 adjust :: FieldFormat -> (String, String) -> String
 adjust ufmt (pre, str) = 
   let naturalWidth = length pre + length str
@@ -336,6 +343,8 @@ adjust ufmt (pre, str) =
         then pre ++ fill ++ str
         else fill ++ pre ++ str
 
+-- For positive numbers with an explicit sign field ("+" or
+-- " "), adjust accordingly.
 adjustSigned :: FieldFormat -> (String, String) -> String
 adjustSigned ufmt@(FieldFormat {fmtSign = SignPlus}) ("", str) = 
   adjust ufmt ("+", str)
@@ -344,11 +353,19 @@ adjustSigned ufmt@(FieldFormat {fmtSign = SignSpace}) ("", str) =
 adjustSigned ufmt ps = 
   adjust ufmt ps
 
+-- Format a signed integer in the "default" fashion.
+-- This will be subjected to adjust subsequently.
 fmti :: Int -> Integer -> (String, String)
 fmti prec i
   | i < 0 = ("-", integral_prec prec (show (-i))) 
   | otherwise = ("", integral_prec prec (show i))
 
+-- Format an unsigned integer in the "default" fashion.
+-- This will be subjected to adjust subsequently.  The 'b'
+-- argument is the base, and the '(Just m)' argument is the
+-- implicit size of the operand for conversion from signed
+-- to unsigned. Thus, this function will refuse to convert
+-- an unbounded negative integer to an unsigned string.
 fmtu :: Integer -> Int -> Maybe Integer -> Integer -> String
 fmtu b prec _ i | i > 0 =
   integral_prec prec (itosb b i)
@@ -357,12 +374,11 @@ fmtu b prec (Just m) i =
 fmtu _ _ _ _ =
   baderr
 
+-- This is used by 'fmtu' and 'fmti' to zero-pad an
+-- int-string to a required precision.
 integral_prec :: Int -> String -> String
 integral_prec prec integral = 
-  replicate (prec - (length integral)) '0' ++ integral
-
-tostr :: Int -> String -> String
-tostr n s = if n >= 0 then take n s else s
+  replicate (prec - length integral) '0' ++ integral
 
 itosb :: Integer -> Integer -> String
 itosb b n = 
