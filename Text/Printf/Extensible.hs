@@ -317,8 +317,7 @@ fmt cs0 us0 =
 
 adjust :: FieldFormat -> (String, String) -> String
 adjust ufmt (pre, str) = 
-  let lstr = length str
-      lpre = length pre
+  let naturalWidth = length pre + length str
       zero = case fmtAdjust ufmt of
         Just ZeroPad -> True
         _ -> False
@@ -326,9 +325,9 @@ adjust ufmt (pre, str) =
         Just LeftAdjust -> True
         _ -> False
       fill = case fmtWidth ufmt of
-        Just width | lstr + lpre < width ->
+        Just width | naturalWidth < width ->
           let fillchar = if zero then '0' else ' ' in
-          replicate (width - (lstr + lpre)) fillchar
+          replicate (width - naturalWidth) fillchar
         _ -> ""
   in
    if left
