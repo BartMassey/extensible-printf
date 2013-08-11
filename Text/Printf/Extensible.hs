@@ -8,9 +8,9 @@
 -- |
 -- Module      :  Text.Printf.Extensible
 -- Copyright   :  (c) Lennart Augustsson and Bart Massey 2013
--- License     :  BSD-style (see the file libraries/base/LICENSE)
+-- License     :  BSD-style (see the file LICENSE in this distribution)
 -- 
--- Maintainer  :  lennart@augustsson.net
+-- Maintainer  :  bart@cs.pdx.edu
 -- Stability   :  provisional
 -- Portability :  portable
 --
@@ -20,7 +20,6 @@
 -- <http://comments.gmane.org/gmane.comp.lang.haskell.libraries/4726> 
 -- to support extensible formatting for new datatypes.
 -- It has also been extended to support most printf(3) syntax.
---
 -----------------------------------------------------------------------------
 
 module Text.Printf.Extensible (
