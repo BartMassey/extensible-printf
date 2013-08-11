@@ -407,6 +407,23 @@ adjustment True False = Just LeftAdjust
 adjustment False True = Just ZeroPad
 adjustment True True = Just LeftAdjust
 
+check_width :: String -> String
+check_width "" = fmterr
+check_width cs = cs
+
+strip_widths :: String -> String
+strip_widths ('h' : 'h' : cs) = check_width cs
+strip_widths ('h' : cs) = check_width cs
+strip_widths ('l' : 'l' : cs) = check_width cs
+strip_widths ('l' : cs) = check_width cs
+strip_widths ('L' : cs) = check_width cs
+strip_widths ('q' : cs) = check_width cs
+strip_widths ('j' : cs) = check_width cs
+strip_widths ('z' : cs) = check_width cs
+strip_widths ('t' : cs) = check_width cs
+strip_widths "" = fmterr
+strip_widths cs = cs
+
 getSpecs :: Bool -> Bool -> FormatSign -> Bool -> String -> [UPrintf] 
          -> (FieldFormat, String, [UPrintf])
 getSpecs _ z s a ('-' : cs0) us = getSpecs True z s a cs0 us
@@ -416,13 +433,14 @@ getSpecs l _ s a ('0' : cs0) us = getSpecs l True s a cs0 us
 getSpecs l z s _ ('#' : cs0) us = getSpecs l z s True cs0 us
 getSpecs l z s a ('*' : cs0) us =
   let (us', n) = getStar us
-      ((p, c : cs), us'') = case cs0 of
+      ((p, cs''), us'') = case cs0 of
         '.':'*':r -> 
           let (us''', p') = getStar us' in ((p', r), us''')
         '.':r -> 
           (stoi r, us')
         _ -> 
           ((-1, cs0), us')
+      c : cs = strip_widths cs''
   in
    (FieldFormat {
        fmtWidth = Just n, 
@@ -432,9 +450,10 @@ getSpecs l z s a ('*' : cs0) us =
        fmtAlternate = a,
        fmtChar = c}, cs, us'')
 getSpecs l z s a ('.' : cs0) us =
-  let ((p, c : cs), us') = case cs0 of
+  let ((p, cs'), us') = case cs0 of
         '*':cs'' -> let (us'', p') = getStar us in ((p', cs''), us'')
         _ ->        (stoi cs0, us)
+      c : cs = strip_widths cs'
   in  
    (FieldFormat {
        fmtWidth = Nothing, 
@@ -445,13 +464,14 @@ getSpecs l z s a ('.' : cs0) us =
        fmtChar = c}, cs, us')
 getSpecs l z s a cs0@(c0 : _) us | isDigit c0 =
   let (n, cs') = stoi cs0
-      ((p, c : cs), us') = case cs' of
+      ((p, cs''), us') = case cs' of
         '.' : '*' : r ->
           let (us'', p') = getStar us in ((p', r), us'')
         '.' : r -> 
           (stoi r, us)
         _ -> 
           ((-1, cs'), us)
+      c : cs = strip_widths cs''
   in 
    (FieldFormat {
        fmtWidth = Just n, 
@@ -460,9 +480,8 @@ getSpecs l z s a cs0@(c0 : _) us | isDigit c0 =
        fmtSign = s,
        fmtAlternate = a,
        fmtChar = c}, cs, us')
-getSpecs l z s a (c : cs) us | c `elem` "hlLqjzt" =
-  getSpecs l z s a cs us
-getSpecs l z s a (c : cs) us = 
+getSpecs l z s a cs0@(_ : _) us = 
+  let c : cs = strip_widths cs0 in
   (FieldFormat {
       fmtWidth = Nothing, 
       fmtPrecision = Nothing, 
