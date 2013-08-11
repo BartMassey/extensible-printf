@@ -129,9 +129,7 @@ instance PrintfType [Char] where
     spr fmts args = uprintf fmts (reverse args)
 
 instance PrintfType (IO ()) where
-    spr fmts args = do
-        putStr (uprintf fmts (reverse args))
-        return (error "PrintfType (IO a): result should not be used.")
+    spr fmts args = putStr (uprintf fmts (reverse args))
 
 instance HPrintfType (IO ()) where
     hspr hdl fmts args = do
