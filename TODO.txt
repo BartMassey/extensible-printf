@@ -1,0 +1,5 @@
+* Implement "#" alt floating formats in alt float code
+* Implement other "#" alt formats
+* Fix width modifiers to only work on numeric types
+  * More generally, fix formatting to be type-specific
+
