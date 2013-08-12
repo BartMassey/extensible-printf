@@ -8,7 +8,7 @@ newtype Unary = Unary Int
 instance PrintfArg Unary where
   toField (Unary i) ufmt =
     case ufmt of
-      FieldFormat {fmtChar = 'z'} ->
+      FieldFormat {fmtChar = 'U'} ->
         let (s, i') = if i >= 0 then ("", i) else ("-", (-i)) in
         formatString (s ++ replicate i' '*') (ufmt {fmtChar = 's'})
       _ -> 
@@ -16,5 +16,5 @@ instance PrintfArg Unary where
 
 main :: IO ()
 main = do
-  printf "%s %d %c %d %z %d\n"
+  printf "%s %d %c %d %U %d\n"
     "hello" (1 :: Int) 'a' 'b' (Unary (-3)) (Unary 5)
