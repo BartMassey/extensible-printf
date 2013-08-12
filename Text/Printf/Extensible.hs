@@ -34,6 +34,8 @@ module Text.Printf.Extensible (
 import Prelude
 import Data.Char
 import Data.Int
+import Data.List (stripPrefix)
+import Data.Map as M hiding (adjust, map)
 import Data.Word
 import Numeric(showEFloat, showFFloat, showGFloat)
 import System.IO
@@ -149,28 +151,76 @@ data FormatSign = SignPlus | SignSpace | SignNothing
 -- | Description of field formatting for 'toField'. See UNIX `printf`(3)
 -- for a description of how field formatting works.
 data FieldFormat = FieldFormat {
-  fmtWidth :: Maybe Int,          -- ^ Total width of the field.
-  fmtPrecision :: Maybe Int,      -- ^ A secondary field width specifier.
+  fmtWidth :: Maybe Int,       -- ^ Total width of the field.
+  fmtPrecision :: Maybe Int,   -- ^ Secondary field width specifier.
   fmtAdjust :: Maybe FormatAdjustment,  -- ^ Kind of filling or padding 
                                         --   to be done.
-  fmtSign :: FormatSign,                -- ^ Whether to insist on a plus 
-                                        --   sign for positive numbers.
-  fmtAlternate :: Bool,           -- ^ Indicates an "alternate format".
-                                  --   See printf(3) for the details,
-                                  --   which vary by argument spec.
-  fmtChar :: Char                 -- ^ The format character 'printf' was
-                                  --   invoked with. 'toField' should
-                                  --   fail unless this character matches
-                                  --   the type. It is normal to handle
-                                  --   many different format characters for
-                                  --   a single type.
+  fmtSign :: FormatSign,       -- ^ Whether to insist on a
+                               -- plus sign for positive
+                               -- numbers.
+  fmtAlternate :: Bool,        -- ^ Indicates an "alternate
+                               -- format".  See printf(3)
+                               -- for the details, which
+                               -- vary by argument spec.
+  fmtModifiers :: String,      -- ^ Characters that appeared
+                               -- immediately to the left of
+                               -- 'fmtChar' in the format
+                               -- and were accepted by the
+                               -- type's 'parseFormat'. 
+                               -- Normally "".
+  fmtChar :: Char              -- ^ The format character
+                               -- 'printf' was invoked
+                               -- with. 'toField' should
+                               -- fail unless this character
+                               -- matches the type. It is
+                               -- normal to handle many
+                               -- different format
+                               -- characters for a single
+                               -- type.
   }
+
+data FormatParse = FormatParse {
+    fpModifiers :: String,
+    fpChar :: Char,
+    fpRest :: String }
+
+-- Contains the "modifier letters" that can precede an
+-- integer type.
+intModifierMap :: Map String Integer
+intModifierMap = fromList [
+  ("hh", toInteger (minBound :: Int8)),
+  ("h", toInteger (minBound :: Int16)),
+  ("l", toInteger (minBound :: Int32)),
+  ("ll", toInteger (minBound :: Int64)),
+  ("L", toInteger (minBound :: Int64)) ]
+-- ("q", minBound :: Int64)
+-- ("j", minBound :: "IntMax or UIntMax")
+-- ("z", minBound :: "Size_T or SSize_T")
+-- ("t", minBound :: "PtrDiff_T")
+
+parseIntFormat :: Integral a => a -> String -> FormatParse
+parseIntFormat _ s =
+  case foldrWithKey matchPrefix Nothing intModifierMap of
+    Just m -> m
+    Nothing -> 
+      case s of
+        c : cs -> FormatParse "" c cs
+        "" -> fmterr
+  where
+    matchPrefix p _ m =
+      case stripPrefix p s of
+        Just (c : cs) -> Just $ FormatParse p c cs
+        Just "" -> fmterr
+        Nothing -> m
 
 -- | Typeclass of 'printf'-formattable values. The 'toField' method
 -- takes a value and a field format descriptor and either fails due
 -- to a bad descriptor or produces a 'ShowS' as the result.
 class PrintfArg a where
     toField :: a -> FieldFormat -> ShowS
+    parseFormat :: a -> String -> FormatParse
+    parseFormat _ (c : cs) = FormatParse "" c cs
+    parseFormat _ "" = fmterr
 
 instance PrintfArg Char where
     toField = formatChar
@@ -180,38 +230,49 @@ instance PrintfArg [Char] where
 
 instance PrintfArg Int where
     toField = formatInt
+    parseFormat = parseIntFormat
 
 instance PrintfArg Int8 where
     toField = formatInt
+    parseFormat = parseIntFormat
 
 instance PrintfArg Int16 where
     toField = formatInt
+    parseFormat = parseIntFormat
 
 instance PrintfArg Int32 where
     toField = formatInt
+    parseFormat = parseIntFormat
 
 instance PrintfArg Int64 where
     toField = formatInt
+    parseFormat = parseIntFormat
 
 #ifndef __NHC__
 instance PrintfArg Word where
     toField = formatInt
+    parseFormat = parseIntFormat
 #endif
 
 instance PrintfArg Word8 where
     toField = formatInt
+    parseFormat = parseIntFormat
 
 instance PrintfArg Word16 where
     toField = formatInt
+    parseFormat = parseIntFormat
 
 instance PrintfArg Word32 where
     toField = formatInt
+    parseFormat = parseIntFormat
 
 instance PrintfArg Word64 where
     toField = formatInt
+    parseFormat = parseIntFormat
 
 instance PrintfArg Integer where
     toField = formatInteger
+    parseFormat = parseIntFormat
 
 instance PrintfArg Float where
     toField = formatRealFloat
@@ -241,21 +302,32 @@ formatString x ufmt =
              trunc n = if n >= 0 then take n x else x
     c   -> badfmterr c
 
+fixupMods :: FieldFormat -> Maybe Integer -> Maybe Integer
+fixupMods ufmt m =
+  let mods = fmtModifiers ufmt in
+  case M.lookup mods intModifierMap of
+    Just m0 -> Just m0
+    Nothing -> 
+      case mods of
+        "" -> m
+        _ -> perror "internal error: unknown format modifier"
+
 -- | Formatter for 'Int' values.
 formatInt :: (Integral a, Bounded a) => a -> FieldFormat -> ShowS
 formatInt x ufmt =
-  let m = toInteger $ minBound `asTypeOf` x in
-  formatIntegral (Just m) (toInteger x) ufmt
+  let m = fixupMods ufmt (Just $ toInteger $ minBound `asTypeOf` x) in
+  formatIntegral m (toInteger x) ufmt
   
 -- | Formatter for 'Integer' values.
 formatInteger :: Integer -> FieldFormat -> ShowS
 formatInteger x ufmt =
-  formatIntegral Nothing x ufmt
+  let m = fixupMods ufmt Nothing in
+  formatIntegral m x ufmt
 
 -- All formatting for integral types is handled
 -- consistently.  The only difference is between Integer and
 -- bounded types; this difference is handled by the 'm'
--- argument containing the bound.
+-- argument containing the lower bound.
 formatIntegral :: Maybe Integer -> Integer -> FieldFormat -> ShowS
 formatIntegral m x ufmt =
   let prec = unprec ufmt in
@@ -410,19 +482,6 @@ check_width :: String -> String
 check_width "" = fmterr
 check_width cs = cs
 
-strip_widths :: String -> String
-strip_widths ('h' : 'h' : cs) = check_width cs
-strip_widths ('h' : cs) = check_width cs
-strip_widths ('l' : 'l' : cs) = check_width cs
-strip_widths ('l' : cs) = check_width cs
-strip_widths ('L' : cs) = check_width cs
-strip_widths ('q' : cs) = check_width cs
-strip_widths ('j' : cs) = check_width cs
-strip_widths ('z' : cs) = check_width cs
-strip_widths ('t' : cs) = check_width cs
-strip_widths "" = fmterr
-strip_widths cs = cs
-
 getSpecs :: Bool -> Bool -> FormatSign -> Bool -> String -> [UPrintf] 
          -> (FieldFormat, String, [UPrintf])
 getSpecs _ z s a ('-' : cs0) us = getSpecs True z s a cs0 us
@@ -439,7 +498,10 @@ getSpecs l z s a ('*' : cs0) us =
           (stoi r, us')
         _ -> 
           ((-1, cs0), us')
-      c : cs = strip_widths cs''
+      FormatParse ms c cs = 
+        case us'' of
+          u : _ -> parseFormat u cs''
+          [] -> argerr
   in
    (FieldFormat {
        fmtWidth = Just n, 
@@ -447,12 +509,16 @@ getSpecs l z s a ('*' : cs0) us =
        fmtAdjust = adjustment l z, 
        fmtSign = s,
        fmtAlternate = a,
+       fmtModifiers = ms,
        fmtChar = c}, cs, us'')
 getSpecs l z s a ('.' : cs0) us =
   let ((p, cs'), us') = case cs0 of
         '*':cs'' -> let (us'', p') = getStar us in ((p', cs''), us'')
         _ ->        (stoi cs0, us)
-      c : cs = strip_widths cs'
+      FormatParse ms c cs =
+        case us' of
+          u : _ -> parseFormat u cs'
+          [] -> argerr
   in  
    (FieldFormat {
        fmtWidth = Nothing, 
@@ -460,6 +526,7 @@ getSpecs l z s a ('.' : cs0) us =
        fmtAdjust = adjustment l z, 
        fmtSign = s,
        fmtAlternate = a,
+       fmtModifiers = ms,
        fmtChar = c}, cs, us')
 getSpecs l z s a cs0@(c0 : _) us | isDigit c0 =
   let (n, cs') = stoi cs0
@@ -470,7 +537,10 @@ getSpecs l z s a cs0@(c0 : _) us | isDigit c0 =
           (stoi r, us)
         _ -> 
           ((-1, cs'), us)
-      c : cs = strip_widths cs''
+      FormatParse ms c cs =
+        case us' of
+          u : _ -> parseFormat u cs''
+          [] -> argerr
   in 
    (FieldFormat {
        fmtWidth = Just n, 
@@ -478,16 +548,22 @@ getSpecs l z s a cs0@(c0 : _) us | isDigit c0 =
        fmtAdjust = adjustment l z, 
        fmtSign = s,
        fmtAlternate = a,
+       fmtModifiers = ms,
        fmtChar = c}, cs, us')
 getSpecs l z s a cs0@(_ : _) us = 
-  let c : cs = strip_widths cs0 in
-  (FieldFormat {
-      fmtWidth = Nothing, 
-      fmtPrecision = Nothing, 
-      fmtAdjust = adjustment l z, 
-      fmtSign = s,
-      fmtAlternate = a,
-      fmtChar = c}, cs, us)
+  let FormatParse ms c cs =
+        case us of
+          u : _ -> parseFormat u cs0
+          [] -> argerr
+  in      
+   (FieldFormat {
+       fmtWidth = Nothing, 
+       fmtPrecision = Nothing, 
+       fmtAdjust = adjustment l z, 
+       fmtSign = s,
+       fmtAlternate = a,
+       fmtModifiers = ms,
+       fmtChar = c}, cs, us)
 getSpecs _ _ _ _ ""       _  =
   fmterr
 
