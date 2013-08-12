@@ -359,8 +359,8 @@ formatRealFloat x ufmt =
      'G' -> (adjustSigned ufmt (dfmt c prec x) ++)
      _   -> badfmterr c
 
--- This is just a lazy notational convenience left over from
--- old code. It should probably be erased.
+-- This is the type carried around for arguments in
+-- the varargs code.
 type UPrintf = FieldFormat -> ShowS
 
 -- Given a format string and a list of functions that take
