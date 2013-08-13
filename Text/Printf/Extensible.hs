@@ -14,12 +14,12 @@
 -- Stability   :  provisional
 -- Portability :  portable
 --
--- A C printf like formatter. This version has been extended by
+-- A C @printf(3)@-like formatter. This version has been extended by
 -- Bart Massey as per the recommendations of John Meacham and
 -- Simon Marlow
 -- <http://comments.gmane.org/gmane.comp.lang.haskell.libraries/4726>
 -- to support extensible formatting for new datatypes.
--- It has also been extended to support most printf(3) syntax.
+-- It has also been extended to support most C @printf(3)@ syntax.
 -----------------------------------------------------------------------------
 
 module Text.Printf.Extensible (
@@ -44,18 +44,40 @@ import System.IO
 -------------------
 
 -- | Format a variable number of arguments with the C-style formatting string.
--- The return value is either 'String' or @('IO' a)@.
+-- The return value is either 'String' or @('IO' ())@.
 --
 -- The format string consists of ordinary characters and /conversion
 -- specifications/, which specify how to format one of the arguments
--- to printf in the output string.  A conversion specification begins with the
+-- to 'printf' in the output string. Unlike C @printf(3)@, the formatting
+-- is driven by the argument type; formatting is type specific. The
+-- types formatted by 'printf' \"out of the box\" are:
+--
+-- > 'Integral' types, including 'Char': 'printf' makes no real distinction
+-- > 'String'
+-- > 'RealFloat' types
+--
+-- 'printf' is also extensible to support other types: see below.
+--
+-- A conversion specification begins with the
 -- character @%@, followed by one or more of the following flags:
 --
 -- >    -      left adjust (default is right adjust)
 -- >    +      always use a sign (+ or -) for signed conversions
--- >    0      pad with zeroes rather than spaces
+-- >    space  leading space for positive numbers in signed conversions
+-- >    0      pad with zeros rather than spaces
+-- >    #      use an \"alternate form\": see below
 --
--- followed optionally by a field width:
+-- When both flags are given, @-@ overrides @0@ and @+@ overrides space.
+--
+-- The \"alternate form\" for conversions is as in C @printf(3)@:
+--
+-- >    %o     prefix with a leading 0 if not already zero
+-- >    %x     prefix with a leading 0x
+-- >    %X     prefix with a leading 0X
+-- >    %eEfF  ensure that the conversion contains a decimal point
+-- >    %gG    like %eEfF, and also do not remove trailing zeros
+--
+-- Any flags are followed optionally by a field width:
 --
 -- >    num    field width
 -- >    *      as num, but taken from argument list
@@ -63,24 +85,39 @@ import System.IO
 -- followed optionally by a precision:
 --
 -- >    .num   precision (number of decimal places)
+-- >    .      same as .0
 --
--- and finally, a format character:
+-- followed optionally for Integral types by a width
+-- specifier; the only use of this specifier being to set
+-- the implicit size of the operand for conversion of
+-- a negative operand to unsigned:
 --
--- >    c      character               Char, Int, Integer, ...
--- >    d      decimal                 Char, Int, Integer, ...
--- >    o      octal                   Char, Int, Integer, ...
--- >    x      hexadecimal             Char, Int, Integer, ...
--- >    X      hexadecimal             Char, Int, Integer, ...
--- >    u      unsigned decimal        Char, Int, Integer, ...
--- >    f      floating point          Float, Double
--- >    g      general format float    Float, Double
--- >    G      general format float    Float, Double
--- >    e      exponent format float   Float, Double
--- >    E      exponent format float   Float, Double
+-- >    hh     Int8
+-- >    h      Int16
+-- >    l      Int32
+-- >    ll     Int64
+-- >    L      Int64
+--
+-- and finally, ending with a format character:
+--
+-- >    c      character               Integral
+-- >    d      decimal                 Integral
+-- >    o      octal                   Integral
+-- >    x      hexadecimal             Integral
+-- >    X      hexadecimal             Integral
+-- >    u      unsigned decimal        Integral
+-- >    f      floating point          RealFloat
+-- >    F      floating point          RealFloat
+-- >    g      general format float    RealFloat
+-- >    G      general format float    RealFloat
+-- >    e      exponent format float   RealFloat
+-- >    E      exponent format float   RealFloat
 -- >    s      string                  String
 --
--- Mismatch between the argument types and the format string will cause
--- an exception to be thrown at runtime.
+-- Mismatch between the argument types and the format
+-- string, as well as any other syntactic or semantic errors
+-- in the format string, will cause an exception to be
+-- thrown at runtime.
 --
 -- Examples:
 --
@@ -95,7 +132,7 @@ printf :: (PrintfType r) => String -> r
 printf fmts = spr fmts []
 
 -- | Similar to 'printf', except that output is via the specified
--- 'Handle'.  The return type is restricted to @('IO' a)@.
+-- 'Handle'.  The return type is restricted to @('IO' ())@.
 hPrintf :: (HPrintfType r) => Handle -> String -> r
 hPrintf hdl fmts = hspr hdl fmts []
 
@@ -115,20 +152,18 @@ class HPrintfType t where
     hspr :: Handle -> String -> [UPrintf] -> t
 
 {-
-   These are not allowed in Haskell 98:
+   This is not allowed in Haskell 98, because String
+   is a concrete type:
 
      instance PrintfType String where
        spr fmt args = uprintf fmt (reverse args)
 
-   I have decided I don't care here, and am
-   going to use [Char] and FlexibleInstances
-   for clarity. This also allows getting the
-   type of printf and hprintf to be IO (), which
-   is important now that GHC gives warnings on
-   ignored returns.
+   I have decided I don't care here, and am going to use
+   FlexibleInstances for clarity. This also allows getting the
+   type of printf and hprintf to be IO ().
 -}
 
-instance PrintfType [Char] where
+instance PrintfType String where
     spr fmts args = uprintf fmts (reverse args)
 
 instance PrintfType (IO ()) where
@@ -146,10 +181,12 @@ instance (PrintfArg a, HPrintfType r) => HPrintfType (a -> r) where
                                   ((parseFormat a, toField a) : args)
 
 -- | Whether to left-adjust or zero-pad a field. These are
--- mutually exclusive.
+-- mutually exclusive, with 'LeftAdjust' taking precedence.
 data FormatAdjustment = LeftAdjust | ZeroPad
 
-data FormatSign = SignPlus | SignSpace | SignNothing
+-- | How to handle the sign of a numeric field.  These are
+-- mutually exclusive, with 'SignPlus' taking precedence.
+data FormatSign = SignPlus | SignSpace
 
 -- | Description of field formatting for 'toField'. See UNIX `printf`(3)
 -- for a description of how field formatting works.
@@ -158,7 +195,7 @@ data FieldFormat = FieldFormat {
   fmtPrecision :: Maybe Int,   -- ^ Secondary field width specifier.
   fmtAdjust :: Maybe FormatAdjustment,  -- ^ Kind of filling or padding
                                         --   to be done.
-  fmtSign :: FormatSign,       -- ^ Whether to insist on a
+  fmtSign :: Maybe FormatSign, -- ^ Whether to insist on a
                                -- plus sign for positive
                                -- numbers.
   fmtAlternate :: Bool,        -- ^ Indicates an "alternate
@@ -410,7 +447,7 @@ uprintfs (c:cs)   us       = (c :) . uprintfs cs us
 -- then continue with 'uprintfs'.
 fmt :: String -> [UPrintf] -> ShowS
 fmt cs0 us0 =
-  case getSpecs False False SignNothing False cs0 us0 of
+  case getSpecs False False Nothing False cs0 us0 of
     (_, _, []) -> argerr
     (ufmt, cs, (_, u) : us) -> u ufmt . uprintfs cs us
 
@@ -443,9 +480,9 @@ adjust ufmt (pre, str) =
 -- For positive numbers with an explicit sign field ("+" or
 -- " "), adjust accordingly.
 adjustSigned :: FieldFormat -> (String, String) -> String
-adjustSigned ufmt@(FieldFormat {fmtSign = SignPlus}) ("", str) =
+adjustSigned ufmt@(FieldFormat {fmtSign = Just SignPlus}) ("", str) =
   adjust ufmt ("+", str)
-adjustSigned ufmt@(FieldFormat {fmtSign = SignSpace}) ("", str) =
+adjustSigned ufmt@(FieldFormat {fmtSign = Just SignSpace}) ("", str) =
   adjust ufmt (" ", str)
 adjustSigned ufmt ps =
   adjust ufmt ps
@@ -498,11 +535,11 @@ adjustment True False = Just LeftAdjust
 adjustment False True = Just ZeroPad
 adjustment True True = Just LeftAdjust
 
-getSpecs :: Bool -> Bool -> FormatSign -> Bool -> String -> [UPrintf]
+getSpecs :: Bool -> Bool -> Maybe FormatSign -> Bool -> String -> [UPrintf]
          -> (FieldFormat, String, [UPrintf])
 getSpecs _ z s a ('-' : cs0) us = getSpecs True z s a cs0 us
-getSpecs l z _ a ('+' : cs0) us = getSpecs l z SignPlus a cs0 us
-getSpecs l z _ a (' ' : cs0) us = getSpecs l z SignSpace a cs0 us
+getSpecs l z _ a ('+' : cs0) us = getSpecs l z (Just SignPlus) a cs0 us
+getSpecs l z _ a (' ' : cs0) us = getSpecs l z (Just SignSpace) a cs0 us
 getSpecs l _ s a ('0' : cs0) us = getSpecs l True s a cs0 us
 getSpecs l z s _ ('#' : cs0) us = getSpecs l z s True cs0 us
 getSpecs l z s a ('*' : cs0) us =
@@ -589,7 +626,7 @@ getStar us =
         fmtWidth = Nothing,
         fmtPrecision = Nothing,
         fmtAdjust = Nothing,
-        fmtSign = SignNothing,
+        fmtSign = Nothing,
         fmtAlternate = False,
         fmtModifiers = "",
         fmtChar = 'd' } in
