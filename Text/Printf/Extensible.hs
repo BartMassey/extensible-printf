@@ -27,7 +27,7 @@ module Text.Printf.Extensible (
    PrintfType, HPrintfType,
    formatChar, formatString, formatInt,
    formatInteger, formatRealFloat,
-   FieldFormatter(..), ModifierParser(..),
+   FieldFormatter, ModifierParser,
    FieldFormat(..), PrintfArg(..),
    FormatAdjustment(..), FormatSign(..)
 ) where
@@ -182,10 +182,8 @@ data FieldFormat = FieldFormat {
                                -- type.
   }
 
-data FormatParse = FormatParse {
-    fpModifiers :: String,
-    fpChar :: Char,
-    fpRest :: String }
+-- modifiers, format-char, rest
+data FormatParse = FormatParse String Char String
 
 -- Contains the "modifier letters" that can precede an
 -- integer type.
