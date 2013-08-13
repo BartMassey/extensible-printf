@@ -1,4 +1,5 @@
-* Implement "#" alt floating formats in alt float code
-* Implement other "#" alt formats
+* Fix RealFloat formatting:
+  * Fix standard floating formats
+  * Implement "#" alt floating formats in alt float code
 * Cover the printf(3) manpage carefully and check for compliance
 * Deal with locale-specific "," and ".".
