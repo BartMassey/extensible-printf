@@ -41,7 +41,7 @@ module Text.Printf.Extensible (
 -- >   toField x fmt | fmtChar fmt == 'u' =
 -- >     formatString "()" (fmt { fmtChar = 's', fmtPrecision = Nothing })
 -- >   toField _ _ = error "invalid format character"
--- > 
+-- >
 -- > main :: IO ()
 -- > main = printf "<%-3.1u>\n" ()
 --
@@ -49,8 +49,8 @@ module Text.Printf.Extensible (
 -- take care of field formatting specifications in a convenient
 -- way.
    PrintfArg(..),
-   FieldFormatter, 
-   FieldFormat(..), 
+   FieldFormatter,
+   FieldFormat(..),
    FormatAdjustment(..), FormatSign(..),
 -- ** Handling Type-specific Modifiers
 --
@@ -298,7 +298,7 @@ parseIntFormat _ s =
         c : cs -> FormatParse "" c cs
         "" -> fmterr
   where
-    matchPrefix p _ m@(Just (FormatParse p0 _ _)) 
+    matchPrefix p _ m@(Just (FormatParse p0 _ _))
       | length p0 >= length p = m
       | otherwise = case getFormat p of
           Nothing -> m
@@ -413,12 +413,11 @@ formatString x ufmt =
 fixupMods :: FieldFormat -> Maybe Integer -> Maybe Integer
 fixupMods ufmt m =
   let mods = fmtModifiers ufmt in
-  case M.lookup mods intModifierMap of
-    Just m0 -> Just m0
-    Nothing ->
-      case mods of
-        "" -> m
-        _ -> perror "internal error: unknown format modifier"
+  case mods of
+    "" -> m
+    _ -> case M.lookup mods intModifierMap of
+      Just m0 -> Just m0
+      Nothing -> perror "internal error: unknown format modifier"
 
 -- | Formatter for 'Int' values.
 formatInt :: (Integral a, Bounded a) => a -> FieldFormatter
@@ -442,9 +441,21 @@ formatIntegral m x ufmt =
   case fmtChar ufmt of
     'd' -> (adjustSigned ufmt (fmti prec x) ++)
     'i' -> (adjustSigned ufmt (fmti prec x) ++)
-    'x' -> (adjust ufmt ("", fmtu 16 prec m x) ++)
-    'X' -> (adjust ufmt ("", map toUpper $ fmtu 16 prec m x) ++)
-    'o' -> (adjust ufmt ("", fmtu 8 prec m x) ++)
+    'x' -> (adjust ufmt (altprefix, fmtu 16 prec m x) ++)
+           where
+             altprefix  = case fmtAlternate ufmt of
+               True -> "0x"
+               False -> ""
+    'X' -> (adjust ufmt (altprefix, map toUpper $ fmtu 16 prec m x) ++)
+           where
+             altprefix  = case fmtAlternate ufmt of
+               True -> "0X"
+               False -> ""
+    'o' -> (adjust ufmt (altprefix, fmtu 8 prec m x) ++)
+           where
+             altprefix  = case x /= 0 && fmtAlternate ufmt of
+               True -> "0"
+               False -> ""
     'u' -> (adjust ufmt ("", fmtu 10 prec m x) ++)
     'c' | x >= fromIntegral (ord (minBound :: Char)) &&
           x <= fromIntegral (ord (maxBound :: Char)) ->
@@ -546,11 +557,12 @@ fmti prec i
 -- Format an unsigned integer in the "default" fashion.
 -- This will be subjected to adjust subsequently.  The 'b'
 -- argument is the base, and the '(Just m)' argument is the
--- implicit size of the operand for conversion from signed
--- to unsigned. Thus, this function will refuse to convert
--- an unbounded negative integer to an unsigned string.
+-- implicit lower-bound size of the operand for conversion
+-- from signed to unsigned. Thus, this function will refuse
+-- to convert an unbounded negative integer to an unsigned
+-- string.
 fmtu :: Integer -> Int -> Maybe Integer -> Integer -> String
-fmtu b prec _ i | i > 0 =
+fmtu b prec _ i | i >= 0 =
   integral_prec prec (itosb b i)
 fmtu b prec (Just m) i =
   integral_prec prec (itosb b (-2 * m + i))
