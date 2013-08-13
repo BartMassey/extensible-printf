@@ -139,11 +139,11 @@ instance HPrintfType (IO ()) where
 
 instance (PrintfArg a, PrintfType r) => PrintfType (a -> r) where
     spr fmts args = \ a -> spr fmts
-                             ((toField a, parseFormat a) : args)
+                             ((parseFormat a, toField a) : args)
 
 instance (PrintfArg a, HPrintfType r) => HPrintfType (a -> r) where
     hspr hdl fmts args = \ a -> hspr hdl fmts
-                                  ((toField a, parseFormat a) : args)
+                                  ((parseFormat a, toField a) : args)
 
 -- | Whether to left-adjust or zero-pad a field. These are
 -- mutually exclusive.
@@ -374,11 +374,10 @@ formatRealFloat x ufmt =
 -- the varargs code.
 type UPrintf = (ModifierParser, FieldFormatter)
 
--- Given a format string and a list of functions that take
--- formatting information to a field string (the actual
--- field value having already been baked into each of these
--- functions before delivery), return the actual formatted
--- text string.
+-- Given a format string and a list of formatting functions
+-- (the actual field value having already been baked into
+-- each of these functions before delivery), return the
+-- actual formatted text string.
 uprintf :: String -> [UPrintf] -> String
 uprintf s us = uprintfs s us ""
 
@@ -400,10 +399,9 @@ uprintfs (c:cs)   us       = (c :) . uprintfs cs us
 -- then continue with 'uprintfs'.
 fmt :: String -> [UPrintf] -> ShowS
 fmt cs0 us0 =
-  fmt' $ getSpecs False False SignNothing False cs0 us0
-  where
-    fmt' (_, _, []) = argerr
-    fmt' (ufmt, cs, u : us) = u ufmt . uprintfs cs us
+  case getSpecs False False SignNothing False cs0 us0 of
+    (_, _, []) -> argerr
+    (ufmt, cs, (_, u) : us) -> u ufmt . uprintfs cs us
 
 -- Given field formatting information, and a tuple
 -- consisting of a prefix (for example, a minus sign) that
@@ -511,7 +509,7 @@ getSpecs l z s a ('*' : cs0) us =
           ((-1, cs0), us')
       FormatParse ms c cs =
         case us'' of
-          u : _ -> parseFormat u cs''
+          (ufmt, _) : _ -> ufmt cs''
           [] -> argerr
   in
    (FieldFormat {
@@ -528,7 +526,7 @@ getSpecs l z s a ('.' : cs0) us =
         _ ->        (stoi cs0, us)
       FormatParse ms c cs =
         case us' of
-          u : _ -> parseFormat u cs'
+          (ufmt, _) : _ -> ufmt cs'
           [] -> argerr
   in
    (FieldFormat {
@@ -550,7 +548,7 @@ getSpecs l z s a cs0@(c0 : _) us | isDigit c0 =
           ((-1, cs'), us)
       FormatParse ms c cs =
         case us' of
-          u : _ -> parseFormat u cs''
+          (ufmt, _) : _ -> ufmt cs''
           [] -> argerr
   in
    (FieldFormat {
@@ -564,7 +562,7 @@ getSpecs l z s a cs0@(c0 : _) us | isDigit c0 =
 getSpecs l z s a cs0@(_ : _) us =
   let FormatParse ms c cs =
         case us of
-          u : _ -> parseFormat u cs0
+          (ufmt, _) : _ -> ufmt cs0
           [] -> argerr
   in
    (FieldFormat {
@@ -586,10 +584,11 @@ getStar us =
         fmtAdjust = Nothing,
         fmtSign = SignNothing,
         fmtAlternate = False,
+        fmtModifiers = "",
         fmtChar = 'd' } in
   case us of
     [] -> argerr
-    nu : us' -> (us', read (nu ufmt ""))
+    (_, nu) : us' -> (us', read (nu ufmt ""))
 
 dfmt :: (RealFloat a) => Char -> Maybe Int -> a -> (String, String)
 dfmt c p d =
