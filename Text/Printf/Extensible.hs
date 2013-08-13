@@ -170,7 +170,7 @@ data FieldFormat = FieldFormat {
                                -- 'fmtChar' in the format
                                -- and were accepted by the
                                -- type's 'parseFormat'.
-                               -- Normally "".
+                               -- Normally the empty string.
   fmtChar :: Char              -- ^ The format character
                                -- 'printf' was invoked
                                -- with. 'toField' should
