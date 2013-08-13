@@ -1,3 +1,10 @@
+* Fix bugs found in testing:
+  * Don't stick a 0 in front of the zero-fill in
+    e.g. printf "%0#5o" 1
+  * Treat Char arguments as Int so that the modifiers
+    are collected.
+  * Treat 0 for "%x" and "%x" as with "%o": don't add prefix.
+  * When a precision is given, ignore zero-fill.
 * Deal with locale-specific "," and "." (deferred for now)
 * Fix RealFloat formatting (deferred for now)
   * Fix standard floating formats
