@@ -120,13 +120,17 @@ import System.IO
 --
 -- When both flags are given, @-@ overrides @0@ and @+@ overrides space.
 --
--- The \"alternate form\" for conversions is as in C @printf(3)@:
+-- The \"alternate form\" for unsigned radix conversions is
+-- as in C @printf(3)@:
 --
 -- >    %o     prefix with a leading 0 if not already zero
 -- >    %x     prefix with a leading 0x
 -- >    %X     prefix with a leading 0X
--- >    %eEfF  ensure that the conversion contains a decimal point
--- >    %gG    like %eEfF, and also do not remove trailing zeros
+--
+-- An alternate form for 'RealFloat' conversions is silently
+-- ignored: the differences in floating point formatting
+-- from C @printf(3)@ noted below make it difficult to
+-- do anything sensible.
 --
 -- Any flags are followed optionally by a field width:
 --
@@ -170,6 +174,13 @@ import System.IO
 -- string, as well as any other syntactic or semantic errors
 -- in the format string, will cause an exception to be
 -- thrown at runtime.
+--
+-- Note that the formatting for 'RealFloat' types is
+-- currently quite different from that of C @printf(3)@,
+-- conforming instead to 'Numeric.showEFloat',
+-- 'Numeric.showFFloat' and 'Numeric.showGFloat'. This is
+-- hard to fix, and the fixed versions would format in a
+-- backward-incompatible way.
 --
 -- Examples:
 --
