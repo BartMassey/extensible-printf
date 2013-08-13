@@ -23,13 +23,62 @@
 -----------------------------------------------------------------------------
 
 module Text.Printf.Extensible (
+-- * Printing Functions
    printf, hPrintf,
-   PrintfType, HPrintfType,
-   formatChar, formatString, formatInt,
+-- * Extending To New Types
+--
+-- | This 'printf' can be extended to format types
+-- other than those provided for by default. This
+-- is done by instancing 'PrintfArg' and providing
+-- a 'toField' for the type. It is possible to
+-- provide a 'parseFormat' to process type-specific
+-- modifiers, but the default instance is usually
+-- the best choice.
+--
+-- For example:
+--
+-- > instance PrintfArg () where
+-- >   toField x fmt | fmtChar fmt == 'u' =
+-- >     formatString "()" (fmt { fmtChar = 's', fmtPrecision = Nothing })
+-- >   toField _ _ = error "invalid format character"
+-- > 
+-- > main :: IO ()
+-- > main = printf "<%-3.1u>\n" ()
+--
+-- prints \"@<() >@\". Note the use of 'formatString' to
+-- take care of field formatting specifications in a convenient
+-- way.
+   PrintfArg(..),
+   FieldFormatter, 
+   FieldFormat(..), 
+   FormatAdjustment(..), FormatSign(..),
+-- ** Handling Type-specific Modifiers
+--
+-- | In the unlikely case that modifier characters of
+-- some kind are desirable for a user-provided type,
+-- a 'ModifierParser' can be provided to process these
+-- characters. The resulting modifiers will appear in
+-- the 'FieldFormat' for use by the type-specific formatter.
+   ModifierParser, FormatParse(..),
+-- ** Standard Formatters
+--
+-- | These formatters for standard types are provided for
+-- convenience in writting new type-specific formatters:
+-- a common pattern is to throw to 'formatString' or
+-- 'formatInteger' to do most of the format handling for
+-- a new type.
+   formatString, formatChar, formatInt,
    formatInteger, formatRealFloat,
-   FieldFormatter, ModifierParser, FormatParse(..),
-   FieldFormat(..), PrintfArg(..),
-   FormatAdjustment(..), FormatSign(..)
+-- * Implementation Internals
+-- | These types are needed for implementing processing
+-- variable numbers of arguments to 'printf' and 'hPrintf'.
+-- Their implementation is intentionally not visible from
+-- this module. If you attempt to pass an argument of a type
+-- which is not an instance of the appropriate class to
+-- 'printf' or 'hPrintf', then the compiler will report it
+-- as a missing instance of 'PrintfArg'.  (All 'PrintfArg'
+-- instances are 'PrintfType' instances.)
+  PrintfType, HPrintfType
 ) where
 
 import Prelude
@@ -52,9 +101,11 @@ import System.IO
 -- is driven by the argument type; formatting is type specific. The
 -- types formatted by 'printf' \"out of the box\" are:
 --
--- > 'Integral' types, including 'Char': 'printf' makes no real distinction
--- > 'String'
--- > 'RealFloat' types
+--   * 'Integral' types, including 'Char': 'printf' makes no real distinction
+--
+--   * 'String'
+--
+--   * 'RealFloat' types
 --
 -- 'printf' is also extensible to support other types: see below.
 --
@@ -136,18 +187,13 @@ printf fmts = spr fmts []
 hPrintf :: (HPrintfType r) => Handle -> String -> r
 hPrintf hdl fmts = hspr hdl fmts []
 
--- |The 'PrintfType' class provides the variable argument magic for
--- 'printf'.  Its implementation is intentionally not visible from
--- this module. If you attempt to pass an argument of a type which
--- is not an instance of this class to 'printf' or 'hPrintf', then
--- the compiler will report it as a missing instance of 'PrintfArg'.
--- (All 'PrintfArg' instances are 'PrintfType' instances.)
+-- | The 'PrintfType' class provides the variable argument magic for
+-- 'printf'.
 class PrintfType t where
     spr :: String -> [UPrintf] -> t
 
 -- | The 'HPrintfType' class provides the variable argument magic for
--- 'hPrintf'.  Its implementation is intentionally not visible from
--- this module.
+-- 'hPrintf'.
 class HPrintfType t where
     hspr :: Handle -> String -> [UPrintf] -> t
 
@@ -219,7 +265,7 @@ data FieldFormat = FieldFormat {
                                -- type.
   }
 
--- | The "format parser" walks over argument-type-specific
+-- | The \"format parser\" walks over argument-type-specific
 -- modifier characters to find the primary format character.
 -- This is the type of its result.
 data FormatParse = FormatParse {
@@ -274,18 +320,14 @@ type ModifierParser = String -> FormatParse
 
 -- | Typeclass of 'printf'-formattable values. The 'toField' method
 -- takes a value and a field format descriptor and either fails due
--- to a bad descriptor or produces a 'ShowS' as the result.
+-- to a bad descriptor or produces a 'ShowS' as the result. The
+-- default 'parseFormat' expects no modifiers: this is the normal
+-- case. Minimal instance: 'toField'.
 class PrintfArg a where
     toField :: a -> FieldFormatter
     parseFormat :: a -> ModifierParser
     parseFormat _ (c : cs) = FormatParse "" c cs
     parseFormat _ "" = fmterr
-
-instance PrintfArg Char where
-    toField = formatChar
-
-instance PrintfArg [Char] where
-    toField = formatString
 
 instance PrintfArg Int where
     toField = formatInt
@@ -338,6 +380,12 @@ instance PrintfArg Float where
 
 instance PrintfArg Double where
     toField = formatRealFloat
+
+instance PrintfArg Char where
+    toField = formatChar
+
+instance PrintfArg String where
+    toField = formatString
 
 -- | Formatter for 'Char' values.
 formatChar :: Char -> FieldFormatter
