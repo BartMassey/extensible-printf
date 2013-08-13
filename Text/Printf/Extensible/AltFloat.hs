@@ -70,6 +70,11 @@ showGFloat    :: (RealFloat a) => Maybe Int -> a -> ShowS
 showGFloat d x =  showString (formatRealFloat FFGeneric d x)
 
 
+-- | Given a 'FFFormat', maybe a number of digits to print
+-- after the decimal point, and a 'RealFloat', format the
+-- number accordingly and return the resulting string.
+-- The mantissa of the result is produced according to the
+-- \'#\' format of 'Text.Printf.Extended.printf'.
 formatRealFloat :: (RealFloat a) => FFFormat -> Maybe Int -> a -> String
 formatRealFloat fmt decs x
    | isNaN x                   = "NaN"
