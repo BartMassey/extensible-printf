@@ -16,5 +16,5 @@ instance PrintfArg Unary where
 
 main :: IO ()
 main = do
-  printf "%s %d %c %d %z %d\n"
+  printf "%s %lld %c %d %z %d\n"
     "hello" (1 :: Int) 'a' 'b' (Unary (-3)) (Unary 5)

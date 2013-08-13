@@ -208,11 +208,18 @@ parseIntFormat _ s =
         c : cs -> FormatParse "" c cs
         "" -> fmterr
   where
-    matchPrefix p _ m =
-      case stripPrefix p s of
-        Just (c : cs) -> Just $ FormatParse p c cs
-        Just "" -> fmterr
-        Nothing -> m
+    matchPrefix p _ m@(Just (FormatParse p0 _ _)) 
+      | length p0 >= length p = m
+      | otherwise = case getFormat p of
+          Nothing -> m
+          Just fp -> Just fp
+    matchPrefix p _ Nothing =
+      getFormat p
+    getFormat p =
+      stripPrefix p s >>= fp
+      where
+        fp (c : cs) = Just $ FormatParse p c cs
+        fp "" = fmterr
 
 -- | This is the type of a field formatter reified over its
 -- argument.
@@ -484,10 +491,6 @@ adjustment False False = Nothing
 adjustment True False = Just LeftAdjust
 adjustment False True = Just ZeroPad
 adjustment True True = Just LeftAdjust
-
-check_width :: String -> String
-check_width "" = fmterr
-check_width cs = cs
 
 getSpecs :: Bool -> Bool -> FormatSign -> Bool -> String -> [UPrintf]
          -> (FieldFormat, String, [UPrintf])
