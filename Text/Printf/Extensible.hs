@@ -27,7 +27,7 @@ module Text.Printf.Extensible (
    PrintfType, HPrintfType,
    formatChar, formatString, formatInt,
    formatInteger, formatRealFloat,
-   FieldFormatter, ModifierParser,
+   FieldFormatter, ModifierParser, FormatParse(..),
    FieldFormat(..), PrintfArg(..),
    FormatAdjustment(..), FormatSign(..)
 ) where
@@ -182,8 +182,14 @@ data FieldFormat = FieldFormat {
                                -- type.
   }
 
--- modifiers, format-char, rest
-data FormatParse = FormatParse String Char String
+-- | The "format parser" walks over argument-type-specific
+-- modifier characters to find the primary format character.
+-- This is the type of its result.
+data FormatParse = FormatParse {
+  fpModifiers :: String,   -- ^ Any modifiers found.
+  fpChar :: Char,          -- ^ Primary format character.
+  fpRest :: String         -- ^ Rest of the format string.
+  }
 
 -- Contains the "modifier letters" that can precede an
 -- integer type.
