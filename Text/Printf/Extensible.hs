@@ -600,7 +600,12 @@ getSpecs :: Bool -> Bool -> Maybe FormatSign -> Bool -> String -> [UPrintf]
          -> (FieldFormat, String, [UPrintf])
 getSpecs _ z s a ('-' : cs0) us = getSpecs True z s a cs0 us
 getSpecs l z _ a ('+' : cs0) us = getSpecs l z (Just SignPlus) a cs0 us
-getSpecs l z _ a (' ' : cs0) us = getSpecs l z (Just SignSpace) a cs0 us
+getSpecs l z s a (' ' : cs0) us = 
+  getSpecs l z ss a cs0 us
+  where
+    ss = case s of
+      Just SignPlus -> Just SignPlus
+      _ -> Just SignSpace
 getSpecs l _ s a ('0' : cs0) us = getSpecs l True s a cs0 us
 getSpecs l z s _ ('#' : cs0) us = getSpecs l z s True cs0 us
 getSpecs l z s a ('*' : cs0) us =
