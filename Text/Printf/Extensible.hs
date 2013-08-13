@@ -137,6 +137,7 @@ import System.IO
 --
 -- >    .num   precision (number of decimal places)
 -- >    .      same as .0
+-- >    .*     as num, but taken from argument list
 --
 -- followed optionally for Integral types by a width
 -- specifier; the only use of this specifier being to set
