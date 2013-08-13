@@ -1,6 +1,4 @@
 * Implement "#" alt floating formats in alt float code
 * Implement other "#" alt formats
-* Fix width modifiers to only work on numeric types
-  * More generally, fix modifiers to be type-specific
-* Deal with locale-specific "," and ".".
 * Cover the printf(3) manpage carefully and check for compliance
+* Deal with locale-specific "," and ".".
