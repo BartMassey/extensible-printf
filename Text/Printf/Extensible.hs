@@ -665,7 +665,7 @@ getSpecs l z s a cs0@(c0 : _) us | isDigit c0 =
         '.' : '*' : r ->
           let (us'', p') = getStar us in ((Just p', r), us'')
         '.' : r ->
-          let (p', r') = stoi r in ((Just p', r'), us')
+          let (p', r') = stoi r in ((Just p', r'), us)
         _ ->
           ((Nothing, cs'), us)
       FormatParse ms c cs =
