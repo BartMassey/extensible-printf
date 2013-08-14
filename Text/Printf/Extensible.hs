@@ -217,18 +217,21 @@ class HPrintfType t where
        spr fmt args = uprintf fmt (reverse args)
 
    I have decided I don't care here, and am going to use
-   FlexibleInstances for clarity. This also allows getting the
-   type of printf and hprintf to be IO ().
+   FlexibleInstances for clarity.
 -}
 
 instance PrintfType String where
     spr fmts args = uprintf fmts (reverse args)
 
-instance PrintfType (IO ()) where
-    spr fmts args = putStr (uprintf fmts (reverse args))
+instance PrintfType (IO a) where
+    spr fmts args = do
+      putStr (uprintf fmts (reverse args))
+      return undefined
 
-instance HPrintfType (IO ()) where
-    hspr hdl fmts args = hPutStr hdl (uprintf fmts (reverse args))
+instance HPrintfType (IO a) where
+    hspr hdl fmts args = do
+      hPutStr hdl (uprintf fmts (reverse args))
+      return undefined
 
 instance (PrintfArg a, PrintfType r) => PrintfType (a -> r) where
     spr fmts args = \ a -> spr fmts
