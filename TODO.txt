@@ -1,9 +1,8 @@
 * Fix bugs found in testing:
-  * Don't stick a 0 in front of the zero-fill in
-    e.g. printf "%0#5o" 1
   * Treat 0 for "%x" and "%x" as with "%o": don't add prefix.
-  * When a precision is given, ignore zero-fill.
-* Deal with locale-specific "," and "." (deferred for now)
+  * Don't stick an extra 0 in front of the zero-fill in
+    e.g. printf "%0#5o" 1
 * Fix RealFloat formatting (deferred for now)
   * Fix standard floating formats
   * Implement "#" alt floating formats in alt float code
+* Deal with locale-specific "," and "." (deferred for now)

@@ -602,11 +602,12 @@ stoi cs =
     "" -> (0, cs')
     _ -> (read as, cs')
 
-adjustment :: Bool -> Bool -> Maybe FormatAdjustment
-adjustment False False = Nothing
-adjustment True False = Just LeftAdjust
-adjustment False True = Just ZeroPad
-adjustment True True = Just LeftAdjust
+-- Figure out the FormatAdjustment, given:
+--   precision, left-adjust, zero-fill
+adjustment :: Maybe a -> Bool -> Bool -> Maybe FormatAdjustment
+adjustment _ True _ = Just LeftAdjust
+adjustment Nothing False True = Just ZeroPad
+adjustment _ _ _ = Nothing
 
 getSpecs :: Bool -> Bool -> Maybe FormatSign -> Bool -> String -> [UPrintf]
          -> (FieldFormat, String, [UPrintf])
@@ -637,7 +638,7 @@ getSpecs l z s a ('*' : cs0) us =
    (FieldFormat {
        fmtWidth = Just n,
        fmtPrecision = p,
-       fmtAdjust = adjustment l z,
+       fmtAdjust = adjustment p l z,
        fmtSign = s,
        fmtAlternate = a,
        fmtModifiers = ms,
@@ -654,7 +655,7 @@ getSpecs l z s a ('.' : cs0) us =
    (FieldFormat {
        fmtWidth = Nothing,
        fmtPrecision = Just p,
-       fmtAdjust = adjustment l z,
+       fmtAdjust = adjustment (Just p) l z,
        fmtSign = s,
        fmtAlternate = a,
        fmtModifiers = ms,
@@ -676,7 +677,7 @@ getSpecs l z s a cs0@(c0 : _) us | isDigit c0 =
    (FieldFormat {
        fmtWidth = Just n,
        fmtPrecision = p,
-       fmtAdjust = adjustment l z,
+       fmtAdjust = adjustment p l z,
        fmtSign = s,
        fmtAlternate = a,
        fmtModifiers = ms,
@@ -690,7 +691,7 @@ getSpecs l z s a cs0@(_ : _) us =
    (FieldFormat {
        fmtWidth = Nothing,
        fmtPrecision = Nothing,
-       fmtAdjust = adjustment l z,
+       fmtAdjust = adjustment Nothing l z,
        fmtSign = s,
        fmtAlternate = a,
        fmtModifiers = ms,
