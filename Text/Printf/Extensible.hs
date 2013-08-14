@@ -395,6 +395,7 @@ instance PrintfArg Double where
 
 instance PrintfArg Char where
     toField = formatChar
+    parseFormat _ fmt = parseIntFormat (undefined :: Int) fmt
 
 instance PrintfArg String where
     toField = formatString
@@ -402,9 +403,7 @@ instance PrintfArg String where
 -- | Formatter for 'Char' values.
 formatChar :: Char -> FieldFormatter
 formatChar x ufmt =
-  case fmtChar ufmt of
-    'c' -> (adjust ufmt ("", [x]) ++)
-    _   -> formatInteger (toInteger $ ord x) ufmt
+  formatIntegral (Just 0) (toInteger $ ord x) ufmt
 
 unprec :: FieldFormat -> Int
 unprec ufmt =
@@ -469,9 +468,11 @@ formatIntegral m x ufmt =
                False -> ""
     'u' -> (adjust ufmt ("", fmtu 10 prec m x) ++)
     'c' | x >= fromIntegral (ord (minBound :: Char)) &&
-          x <= fromIntegral (ord (maxBound :: Char)) ->
-            formatChar (chr $ fromIntegral x) ufmt
-    'c' -> perror "illegal int to char conversion"
+          x <= fromIntegral (ord (maxBound :: Char)) &&
+          fmtPrecision ufmt == Nothing &&
+          fmtModifiers ufmt == "" ->
+            formatString [chr $ fromIntegral x] (ufmt { fmtChar = 's' })
+    'c' -> perror "illegal char conversion"
     c   -> badfmterr c
 
 -- | Formatter for 'RealFloat' values.
@@ -623,11 +624,11 @@ getSpecs l z s a ('*' : cs0) us =
   let (us', n) = getStar us
       ((p, cs''), us'') = case cs0 of
         '.':'*':r ->
-          let (us''', p') = getStar us' in ((p', r), us''')
-        '.':r ->
-          (stoi r, us')
+          let (us''', p') = getStar us' in ((Just p', r), us''')
+        '.':r -> 
+          let (p', r') = stoi r in ((Just p', r'), us')
         _ ->
-          ((-1, cs0), us')
+          ((Nothing, cs0), us')
       FormatParse ms c cs =
         case us'' of
           (ufmt, _) : _ -> ufmt cs''
@@ -635,7 +636,7 @@ getSpecs l z s a ('*' : cs0) us =
   in
    (FieldFormat {
        fmtWidth = Just n,
-       fmtPrecision = Just p,
+       fmtPrecision = p,
        fmtAdjust = adjustment l z,
        fmtSign = s,
        fmtAlternate = a,
@@ -662,11 +663,11 @@ getSpecs l z s a cs0@(c0 : _) us | isDigit c0 =
   let (n, cs') = stoi cs0
       ((p, cs''), us') = case cs' of
         '.' : '*' : r ->
-          let (us'', p') = getStar us in ((p', r), us'')
+          let (us'', p') = getStar us in ((Just p', r), us'')
         '.' : r ->
-          (stoi r, us)
+          let (p', r') = stoi r in ((Just p', r'), us')
         _ ->
-          ((-1, cs'), us)
+          ((Nothing, cs'), us)
       FormatParse ms c cs =
         case us' of
           (ufmt, _) : _ -> ufmt cs''
@@ -674,7 +675,7 @@ getSpecs l z s a cs0@(c0 : _) us | isDigit c0 =
   in
    (FieldFormat {
        fmtWidth = Just n,
-       fmtPrecision = Just p,
+       fmtPrecision = p,
        fmtAdjust = adjustment l z,
        fmtSign = s,
        fmtAlternate = a,
