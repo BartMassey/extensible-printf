@@ -395,7 +395,7 @@ instance PrintfArg Double where
 
 instance PrintfArg Char where
     toField = formatChar
-    parseFormat _ fmt = parseIntFormat (undefined :: Int) fmt
+    parseFormat _ cf = parseIntFormat (undefined :: Int) cf
 
 instance PrintfArg String where
     toField = formatString
