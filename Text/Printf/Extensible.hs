@@ -454,21 +454,9 @@ formatIntegral m x ufmt =
   case fmtChar ufmt of
     'd' -> (adjustSigned ufmt (fmti prec x) ++)
     'i' -> (adjustSigned ufmt (fmti prec x) ++)
-    'x' -> (adjust ufmt (altprefix, fmtu 16 prec m x) ++)
-           where
-             altprefix  = case fmtAlternate ufmt of
-               True -> "0x"
-               False -> ""
-    'X' -> (adjust ufmt (altprefix, map toUpper $ fmtu 16 prec m x) ++)
-           where
-             altprefix  = case fmtAlternate ufmt of
-               True -> "0X"
-               False -> ""
-    'o' -> (adjust ufmt (altprefix, fmtu 8 prec m x) ++)
-           where
-             altprefix  = case x /= 0 && fmtAlternate ufmt of
-               True -> "0"
-               False -> ""
+    'x' -> (adjust ufmt (altprefix "0x", fmtu 16 prec m x) ++)
+    'X' -> (adjust ufmt (altprefix "0X", map toUpper $ fmtu 16 prec m x) ++)
+    'o' -> (adjust ufmt (altprefix "0", fmtu 8 prec m x) ++)
     'u' -> (adjust ufmt ("", fmtu 10 prec m x) ++)
     'c' | x >= fromIntegral (ord (minBound :: Char)) &&
           x <= fromIntegral (ord (maxBound :: Char)) &&
@@ -477,6 +465,9 @@ formatIntegral m x ufmt =
             formatString [chr $ fromIntegral x] (ufmt { fmtChar = 's' })
     'c' -> perror "illegal char conversion"
     c   -> badfmterr c
+  where
+    altprefix pre | x /= 0 && fmtAlternate ufmt = pre
+    altprefix _ = ""
 
 -- | Formatter for 'RealFloat' values.
 formatRealFloat :: RealFloat a => a -> FieldFormatter

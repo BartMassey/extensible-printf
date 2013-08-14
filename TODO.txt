@@ -1,5 +1,4 @@
 * Fix bugs found in testing:
-  * Treat 0 for "%x" and "%x" as with "%o": don't add prefix.
   * Don't stick an extra 0 in front of the zero-fill in
     e.g. printf "%0#5o" 1
 * Fix RealFloat formatting (deferred for now)
