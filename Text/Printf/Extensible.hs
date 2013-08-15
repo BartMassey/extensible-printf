@@ -456,7 +456,12 @@ formatIntegral m x ufmt =
     'i' -> (adjustSigned ufmt (fmti prec x) ++)
     'x' -> (adjust ufmt (altprefix "0x", fmtu 16 prec m x) ++)
     'X' -> (adjust ufmt (altprefix "0X", map toUpper $ fmtu 16 prec m x) ++)
-    'o' -> (adjust ufmt (altprefix "0", fmtu 8 prec m x) ++)
+    'o' -> let ps = 
+                 case fmtu 8 prec m x of
+                   ds@('0' : _) | length ds >= prec -> ("", ds)
+                   ds -> (altprefix "0", ds)
+           in
+            (adjust ufmt ps ++)
     'u' -> (adjust ufmt ("", fmtu 10 prec m x) ++)
     'c' | x >= fromIntegral (ord (minBound :: Char)) &&
           x <= fromIntegral (ord (maxBound :: Char)) &&

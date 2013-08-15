@@ -1,6 +1,3 @@
-* Fix bugs found in testing:
-  * Don't stick an extra 0 in front of the zero-fill in
-    e.g. printf "%0#5o" 1
 * Put in remaining checks for invalid formats
 * Fix RealFloat formatting (deferred for now)
   * Fix standard floating formats
