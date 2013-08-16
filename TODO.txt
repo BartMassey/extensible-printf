@@ -1,5 +1,7 @@
+* Implement "#" alt floating formats in Haskell-compatible way
 * Put in remaining checks for invalid formats
-* Fix RealFloat formatting (deferred for now)
+* Fix RealFloat formatting to match printf standards
+  (Currently wontfix)
   * Fix standard floating formats
   * Implement "#" alt floating formats in alt float code
 * Deal with locale-specific "," and "." (deferred for now)
