@@ -614,11 +614,17 @@ stoi cs =
     _ -> (read as, cs')
 
 -- Figure out the FormatAdjustment, given:
---   precision, left-adjust, zero-fill
-adjustment :: Maybe a -> Bool -> Bool -> Maybe FormatAdjustment
-adjustment _ True _ = Just LeftAdjust
-adjustment Nothing False True = Just ZeroPad
-adjustment _ _ _ = Nothing
+--   width, precision, left-adjust, zero-fill
+adjustment :: Maybe Int -> Maybe a -> Bool -> Bool 
+           -> Maybe FormatAdjustment
+adjustment w p l z =
+  case w of 
+    Just n | n < 0 -> adjl p True z
+    _ -> adjl p l z
+  where
+    adjl _ True _ = Just LeftAdjust
+    adjl Nothing False True = Just ZeroPad
+    adjl _ _ _ = Nothing
 
 getSpecs :: Bool -> Bool -> Maybe FormatSign -> Bool -> String -> [UPrintf]
          -> (FieldFormat, String, [UPrintf])
@@ -647,9 +653,9 @@ getSpecs l z s a ('*' : cs0) us =
           [] -> argerr
   in
    (FieldFormat {
-       fmtWidth = Just n,
+       fmtWidth = Just (abs n),
        fmtPrecision = p,
-       fmtAdjust = adjustment p l z,
+       fmtAdjust = adjustment (Just n) p l z,
        fmtSign = s,
        fmtAlternate = a,
        fmtModifiers = ms,
@@ -666,7 +672,7 @@ getSpecs l z s a ('.' : cs0) us =
    (FieldFormat {
        fmtWidth = Nothing,
        fmtPrecision = Just p,
-       fmtAdjust = adjustment (Just p) l z,
+       fmtAdjust = adjustment Nothing (Just p) l z,
        fmtSign = s,
        fmtAlternate = a,
        fmtModifiers = ms,
@@ -686,9 +692,9 @@ getSpecs l z s a cs0@(c0 : _) us | isDigit c0 =
           [] -> argerr
   in
    (FieldFormat {
-       fmtWidth = Just n,
+       fmtWidth = Just (abs n),
        fmtPrecision = p,
-       fmtAdjust = adjustment p l z,
+       fmtAdjust = adjustment (Just n) p l z,
        fmtSign = s,
        fmtAlternate = a,
        fmtModifiers = ms,
@@ -702,7 +708,7 @@ getSpecs l z s a cs0@(_ : _) us =
    (FieldFormat {
        fmtWidth = Nothing,
        fmtPrecision = Nothing,
-       fmtAdjust = adjustment Nothing l z,
+       fmtAdjust = adjustment Nothing Nothing l z,
        fmtSign = s,
        fmtAlternate = a,
        fmtModifiers = ms,
