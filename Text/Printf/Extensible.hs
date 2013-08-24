@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP, FlexibleInstances #-}
+{-# LANGUAGE CPP #-}
 #if __GLASGOW_HASKELL__ >= 702
 {-# LANGUAGE Safe #-}
 #endif
@@ -78,7 +78,10 @@ module Text.Printf.Extensible (
 -- 'printf' or 'hPrintf', then the compiler will report it
 -- as a missing instance of 'PrintfArg'.  (All 'PrintfArg'
 -- instances are 'PrintfType' instances.)
-  PrintfType, HPrintfType
+  PrintfType, HPrintfType,
+-- | These classes are needed as a Haskell98 compatibility
+-- workaround for the lack of FlexibleInstances.
+  IsChar(..)
 ) where
 
 import Prelude
@@ -214,23 +217,32 @@ class HPrintfType t where
    is a concrete type:
 
      instance PrintfType String where
-       spr fmt args = uprintf fmt (reverse args)
+       ...
 
-   I have decided I don't care here, and am going to use
-   FlexibleInstances for clarity.
+   Have to reverse the args because have been consing.
 -}
+class IsChar a where
+  toChar :: a -> Char
+  fromChar :: Char -> a
 
-instance PrintfType String where
-    spr fmts args = uprintf fmts (reverse args)
+instance IsChar Char where
+  toChar c = c
+  fromChar c = c
 
+instance IsChar a => PrintfType [a] where
+    spr fmts args = map fromChar $ uprintf fmts $ reverse args
+
+-- Note that this should really be (IO ()), but GHC's
+-- type system won't readily let us say that even
+-- with extensions AFAICT.
 instance PrintfType (IO a) where
     spr fmts args = do
-      putStr (uprintf fmts (reverse args))
+      putStr $ map fromChar $ uprintf fmts $ reverse args
       return undefined
 
 instance HPrintfType (IO a) where
     hspr hdl fmts args = do
-      hPutStr hdl (uprintf fmts (reverse args))
+      hPutStr hdl $ uprintf fmts $ reverse args
       return undefined
 
 instance (PrintfArg a, PrintfType r) => PrintfType (a -> r) where
@@ -400,7 +412,7 @@ instance PrintfArg Char where
     toField = formatChar
     parseFormat _ cf = parseIntFormat (undefined :: Int) cf
 
-instance PrintfArg String where
+instance IsChar a => PrintfArg [a] where
     toField = formatString
 
 -- | Formatter for 'Char' values.
@@ -415,10 +427,10 @@ unprec ufmt =
     Nothing -> -1
 
 -- | Formatter for 'String' values.
-formatString :: String -> FieldFormatter
+formatString :: IsChar a => [a] -> FieldFormatter
 formatString x ufmt =
   case fmtChar ufmt of
-    's' -> (adjust ufmt ("", trunc (unprec ufmt)) ++)
+    's' -> map toChar . (adjust ufmt ("", map toChar $ trunc $ unprec ufmt) ++)
            where
              trunc n = if n >= 0 then take n x else x
     c   -> badfmterr c
