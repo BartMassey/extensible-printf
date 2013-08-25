@@ -79,7 +79,7 @@ module Text.Printf.Extensible (
 -- as a missing instance of 'PrintfArg'.  (All 'PrintfArg'
 -- instances are 'PrintfType' instances.)
   PrintfType, HPrintfType,
--- | These classes are needed as a Haskell98 compatibility
+-- | This class is needed as a Haskell98 compatibility
 -- workaround for the lack of FlexibleInstances.
   IsChar(..)
 ) where
@@ -90,7 +90,7 @@ import Data.Int
 import Data.List (stripPrefix)
 import Data.Map as M hiding (adjust, map)
 import Data.Word
-import Numeric(showEFloat, showFFloat, showGFloat)
+import Numeric(showEFloat, showFFloat, showGFloat, showIntAtBase)
 import System.IO
 
 -------------------
@@ -212,15 +212,10 @@ class PrintfType t where
 class HPrintfType t where
     hspr :: Handle -> String -> [UPrintf] -> t
 
-{-
-   This is not allowed in Haskell 98, because String
-   is a concrete type:
-
-     instance PrintfType String where
-       ...
-
-   Have to reverse the args because have been consing.
--}
+-- | This class, with only the one instance, is used as
+-- a workaround for the fact that 'String', as a concrete
+-- type, is not allowable as a typeclass instance. 'IsChar'
+-- is exported for backward-compatibility.
 class IsChar a where
   toChar :: a -> Char
   fromChar :: Char -> a
@@ -420,21 +415,20 @@ formatChar :: Char -> FieldFormatter
 formatChar x ufmt =
   formatIntegral (Just 0) (toInteger $ ord x) ufmt
 
-unprec :: FieldFormat -> Int
-unprec ufmt =
-  case fmtPrecision ufmt of
-    Just p -> p
-    Nothing -> -1
-
 -- | Formatter for 'String' values.
 formatString :: IsChar a => [a] -> FieldFormatter
 formatString x ufmt =
   case fmtChar ufmt of
-    's' -> map toChar . (adjust ufmt ("", map toChar $ trunc $ unprec ufmt) ++)
+    's' -> map toChar . (adjust ufmt ("", ts) ++)
            where
-             trunc n = if n >= 0 then take n x else x
+             ts = map toChar $ trunc $ fmtPrecision ufmt
+               where
+                 trunc Nothing = x
+                 trunc (Just n) = take n x
     c   -> badfmterr c
 
+-- Possibly apply the int modifiers to get a new
+-- int width for conversion.
 fixupMods :: FieldFormat -> Maybe Integer -> Maybe Integer
 fixupMods ufmt m =
   let mods = fmtModifiers ufmt in
@@ -462,19 +456,14 @@ formatInteger x ufmt =
 -- argument containing the lower bound.
 formatIntegral :: Maybe Integer -> Integer -> FieldFormatter
 formatIntegral m x ufmt =
-  let prec = unprec ufmt in
+  let prec = fmtPrecision ufmt in
   case fmtChar ufmt of
     'd' -> (adjustSigned ufmt (fmti prec x) ++)
     'i' -> (adjustSigned ufmt (fmti prec x) ++)
-    'x' -> (adjust ufmt (altprefix "0x", fmtu 16 prec m x) ++)
-    'X' -> (adjust ufmt (altprefix "0X", map toUpper $ fmtu 16 prec m x) ++)
-    'o' -> let ps = 
-                 case fmtu 8 prec m x of
-                   ds@('0' : _) | length ds >= prec -> ("", ds)
-                   ds -> (altprefix "0", ds)
-           in
-            (adjust ufmt ps ++)
-    'u' -> (adjust ufmt ("", fmtu 10 prec m x) ++)
+    'x' -> (adjust ufmt (fmtu 16 (alt "0x" x) prec m x) ++)
+    'X' -> (adjust ufmt (upcase $ fmtu 16 (alt "0X" x) prec m x) ++)
+    'o' -> (adjust ufmt (fmtu 8 (alt "0" x) prec m x) ++)
+    'u' -> (adjust ufmt (fmtu 10 Nothing prec m x) ++)
     'c' | x >= fromIntegral (ord (minBound :: Char)) &&
           x <= fromIntegral (ord (maxBound :: Char)) &&
           fmtPrecision ufmt == Nothing &&
@@ -483,8 +472,11 @@ formatIntegral m x ufmt =
     'c' -> perror "illegal char conversion"
     c   -> badfmterr c
   where
-    altprefix pre | x /= 0 && fmtAlternate ufmt = pre
-    altprefix _ = ""
+    alt _ 0 = Nothing
+    alt p _ = case fmtAlternate ufmt of
+      True -> Just p
+      False -> Nothing
+    upcase (s1, s2) = (s1, map toUpper s2)
 
 -- | Formatter for 'RealFloat' values.
 formatRealFloat :: RealFloat a => a -> FieldFormatter
@@ -572,39 +564,49 @@ adjustSigned ufmt ps =
 
 -- Format a signed integer in the "default" fashion.
 -- This will be subjected to adjust subsequently.
-fmti :: Int -> Integer -> (String, String)
+fmti :: Maybe Int -> Integer -> (String, String)
 fmti prec i
   | i < 0 = ("-", integral_prec prec (show (-i)))
   | otherwise = ("", integral_prec prec (show i))
 
 -- Format an unsigned integer in the "default" fashion.
 -- This will be subjected to adjust subsequently.  The 'b'
--- argument is the base, and the '(Just m)' argument is the
--- implicit lower-bound size of the operand for conversion
--- from signed to unsigned. Thus, this function will refuse
--- to convert an unbounded negative integer to an unsigned
--- string.
-fmtu :: Integer -> Int -> Maybe Integer -> Integer -> String
-fmtu b prec _ i | i >= 0 =
-  integral_prec prec (itosb b i)
-fmtu b prec (Just m) i =
-  integral_prec prec (itosb b (-2 * m + i))
-fmtu _ _ _ _ =
-  baderr
+-- argument is the base, the 'pre' argument is the prefix,
+-- and the '(Just m)' argument is the implicit lower-bound
+-- size of the operand for conversion from signed to
+-- unsigned. Thus, this function will refuse to convert an
+-- unbounded negative integer to an unsigned string.
+fmtu :: Integer -> Maybe String -> Maybe Int -> Maybe Integer -> Integer 
+     -> (String, String)
+fmtu b (Just pre) prec m i =
+  let ("", s) = fmtu b Nothing prec m i in
+  case pre of
+    "0" -> case s of
+      '0' : _ -> ("", s)
+      _ -> (pre, s)
+    _ -> (pre, s)
+fmtu b Nothing prec0 m0 i0 =
+  case fmtu' prec0 m0 i0 of
+    Just s -> ("", s)
+    Nothing -> baderr
+  where
+    fmtu' :: Maybe Int -> Maybe Integer -> Integer -> Maybe String
+    fmtu' prec (Just m) i | i < 0 =
+      fmtu' prec Nothing (-2 * m + i)
+    fmtu' (Just prec) _ i | i >= 0 =
+      fmap (integral_prec (Just prec)) $ fmtu' Nothing Nothing i
+    fmtu' Nothing _ i | i >= 0 =
+      Just $ showIntAtBase b intToDigit i ""
+    fmtu' _ _ _ = Nothing
+
 
 -- This is used by 'fmtu' and 'fmti' to zero-pad an
 -- int-string to a required precision.
-integral_prec :: Int -> String -> String
-integral_prec prec integral =
+integral_prec :: Maybe Int -> String -> String
+integral_prec Nothing integral = integral
+integral_prec (Just 0) "0" = ""
+integral_prec (Just prec) integral =
   replicate (prec - length integral) '0' ++ integral
-
-itosb :: Integer -> Integer -> String
-itosb b n =
-        if n < b then
-            [intToDigit $ fromInteger n]
-        else
-            let (q, r) = quotRem n b in
-            itosb b q ++ [intToDigit $ fromInteger r]
 
 stoi :: String -> (Int, String)
 stoi cs =

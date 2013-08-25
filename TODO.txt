@@ -1,8 +1,8 @@
 * Implement "#" alt floating formats in Haskell-compatible way
-* Put in remaining checks for invalid formats
-* Implement "#" alt floating formats in alt float code
-* Give up and make "%.d" 0 print ""
 * Fix RealFloat formatting to match printf standards
-  (Currently wontfix)
+  (currently wontfix)
   * Fix standard floating formats
+  * Implement "#" alt floating formats
 * Deal with locale-specific "," and "." (deferred for now)
+* Put in remaining checks for invalid formats? Don't know
+  what is still missing here.
