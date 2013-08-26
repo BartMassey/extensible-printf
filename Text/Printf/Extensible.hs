@@ -411,15 +411,20 @@ instance PrintfArg Char where
 instance IsChar a => PrintfArg [a] where
     toField = formatString
 
+-- Substitute the 'v' format character with a default.
+vFmt :: Char -> FieldFormat -> FieldFormat
+vFmt c ufmt@(FieldFormat {fmtChar = 'v'}) = ufmt {fmtChar = c}
+vFmt _ ufmt = ufmt
+
 -- | Formatter for 'Char' values.
 formatChar :: Char -> FieldFormatter
 formatChar x ufmt =
-  formatIntegral (Just 0) (toInteger $ ord x) ufmt
+  formatIntegral (Just 0) (toInteger $ ord x) $ vFmt 'c' ufmt
 
 -- | Formatter for 'String' values.
 formatString :: IsChar a => [a] -> FieldFormatter
 formatString x ufmt =
-  case fmtChar ufmt of
+  case fmtChar $ vFmt 's' ufmt of
     's' -> map toChar . (adjust ufmt ("", ts) ++)
            where
              ts = map toChar $ trunc $ fmtPrecision ufmt
@@ -442,8 +447,13 @@ fixupMods ufmt m =
 -- | Formatter for 'Int' values.
 formatInt :: (Integral a, Bounded a) => a -> FieldFormatter
 formatInt x ufmt =
-  let m = fixupMods ufmt (Just $ toInteger $ minBound `asTypeOf` x) in
-  formatIntegral m (toInteger x) ufmt
+  let lb = toInteger $ minBound `asTypeOf` x
+      m = fixupMods ufmt (Just lb)
+      ufmt' = case lb of
+        0 -> vFmt 'u' ufmt
+        _ -> ufmt
+  in
+  formatIntegral m (toInteger x) ufmt'
 
 -- | Formatter for 'Integer' values.
 formatInteger :: Integer -> FieldFormatter
@@ -473,7 +483,7 @@ formatIntegral m x ufmt0 =
     'c' -> perror "illegal char conversion"
     c   -> badfmterr c
   where
-    ufmt = case ufmt0 of
+    ufmt = vFmt 'd' $ case ufmt0 of
       FieldFormat { fmtPrecision = Just _, fmtAdjust = Just ZeroPad } ->
         ufmt0 { fmtAdjust = Nothing }
       _ -> ufmt0
@@ -486,7 +496,7 @@ formatIntegral m x ufmt0 =
 -- | Formatter for 'RealFloat' values.
 formatRealFloat :: RealFloat a => a -> FieldFormatter
 formatRealFloat x ufmt =
-  let c = fmtChar ufmt
+  let c = fmtChar $ vFmt 'g' ufmt
       prec = fmtPrecision ufmt
       alt = fmtAlternate ufmt
   in
