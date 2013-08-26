@@ -456,8 +456,8 @@ formatInteger x ufmt =
 -- bounded types; this difference is handled by the 'm'
 -- argument containing the lower bound.
 formatIntegral :: Maybe Integer -> Integer -> FieldFormatter
-formatIntegral m x ufmt =
-  let prec = fmtPrecision ufmt in
+formatIntegral m x ufmt0 =
+  let prec = fmtPrecision ufmt0 in
   case fmtChar ufmt of
     'd' -> (adjustSigned ufmt (fmti prec x) ++)
     'i' -> (adjustSigned ufmt (fmti prec x) ++)
@@ -473,6 +473,10 @@ formatIntegral m x ufmt =
     'c' -> perror "illegal char conversion"
     c   -> badfmterr c
   where
+    ufmt = case ufmt0 of
+      FieldFormat { fmtPrecision = Just _, fmtAdjust = Just ZeroPad } ->
+        ufmt0 { fmtAdjust = Nothing }
+      _ -> ufmt0
     alt _ 0 = Nothing
     alt p _ = case fmtAlternate ufmt of
       True -> Just p
@@ -627,7 +631,7 @@ adjustment w p l z =
     _ -> adjl p l z
   where
     adjl _ True _ = Just LeftAdjust
-    adjl Nothing False True = Just ZeroPad
+    adjl _ False True = Just ZeroPad
     adjl _ _ _ = Nothing
 
 getSpecs :: Bool -> Bool -> Maybe FormatSign -> Bool -> String -> [UPrintf]

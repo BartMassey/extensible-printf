@@ -1,4 +1,3 @@
-* Make 0 flag and precision together work as in C printf.
 * Add "%v" formatting for all types to give a default format.
 * Make sure the right things are exported for easy extension.
 * Import the printf(3) manpage into the Haddock and edit it.
