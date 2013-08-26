@@ -92,6 +92,7 @@ import Data.Map as M hiding (adjust, map)
 import Data.Word
 import Numeric(showEFloat, showFFloat, showGFloat, showIntAtBase)
 import System.IO
+import Text.Printf.Extensible.AltFloat
 
 -------------------
 
@@ -483,14 +484,15 @@ formatRealFloat :: RealFloat a => a -> FieldFormatter
 formatRealFloat x ufmt =
   let c = fmtChar ufmt
       prec = fmtPrecision ufmt
+      alt = fmtAlternate ufmt
   in
    case c of
-     'e' -> (adjustSigned ufmt (dfmt c prec x) ++)
-     'E' -> (adjustSigned ufmt (dfmt c prec x) ++)
-     'f' -> (adjustSigned ufmt (dfmt c prec x) ++)
-     'F' -> (adjustSigned ufmt (dfmt c prec x) ++)
-     'g' -> (adjustSigned ufmt (dfmt c prec x) ++)
-     'G' -> (adjustSigned ufmt (dfmt c prec x) ++)
+     'e' -> (adjustSigned ufmt (dfmt c prec alt x) ++)
+     'E' -> (adjustSigned ufmt (dfmt c prec alt x) ++)
+     'f' -> (adjustSigned ufmt (dfmt c prec alt x) ++)
+     'F' -> (adjustSigned ufmt (dfmt c prec alt x) ++)
+     'g' -> (adjustSigned ufmt (dfmt c prec alt x) ++)
+     'G' -> (adjustSigned ufmt (dfmt c prec alt x) ++)
      _   -> badfmterr c
 
 -- This is the type carried around for arguments in
@@ -732,13 +734,13 @@ getStar us =
     [] -> argerr
     (_, nu) : us' -> (us', read (nu ufmt ""))
 
-dfmt :: (RealFloat a) => Char -> Maybe Int -> a -> (String, String)
-dfmt c p d =
+dfmt :: (RealFloat a) => Char -> Maybe Int -> Bool -> a -> (String, String)
+dfmt c p a d =
   let caseConvert = if isUpper c then map toUpper else id
       showFunction = case toLower c of
-        'e' -> showEFloat
-        'f' -> showFFloat
-        'g' -> showGFloat
+        'e' -> if a then showEFloatAlt else showEFloat
+        'f' -> if a then showFFloatAlt else showFFloat
+        'g' -> if a then showGFloatAlt else showGFloat
         _   -> error "Printf.dfmt: impossible"
       result = caseConvert $ showFunction p d ""
   in

@@ -1,4 +1,4 @@
-* Implement "#" alt floating formats in Haskell-compatible way
+* Fix failed test 158: "% 014.4e" 8.6 does not zero-extend
 * Fix RealFloat formatting to match printf standards
   (currently wontfix)
   * Fix standard floating formats

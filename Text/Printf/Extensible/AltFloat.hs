@@ -40,7 +40,9 @@ import Numeric (floatToDigits)
 --
 -- In the call @'showEFloatAlt' digs val@, if @digs@ is 'Nothing',
 -- the value is shown to full precision; if @digs@ is @'Just' d@,
--- then at most @d@ digits after the decimal point are shown.
+-- then exactly @d@ digits after the decimal point are shown.
+-- The result will always contain a decimal point even if
+-- there are no digits after.
 showEFloatAlt    :: (RealFloat a) => Maybe Int -> a -> ShowS
 showEFloatAlt d x =  showString (formatRealFloatAlt FFExponent d x)
 
@@ -52,7 +54,9 @@ showEFloatAlt d x =  showString (formatRealFloatAlt FFExponent d x)
 --
 -- In the call @'showFFloatAlt' digs val@, if @digs@ is 'Nothing',
 -- the value is shown to full precision; if @digs@ is @'Just' d@,
--- then at most @d@ digits after the decimal point are shown.
+-- then exactly @d@ digits after the decimal point are shown.
+-- The result will always contain a decimal point even if
+-- there are no digits after.
 showFFloatAlt    :: (RealFloat a) => Maybe Int -> a -> ShowS
 showFFloatAlt d x =  showString (formatRealFloatAlt FFFixed d x)
 
@@ -65,7 +69,9 @@ showFFloatAlt d x =  showString (formatRealFloatAlt FFFixed d x)
 --
 -- In the call @'showGFloatAlt' digs val@, if @digs@ is 'Nothing',
 -- the value is shown to full precision; if @digs@ is @'Just' d@,
--- then at most @d@ digits after the decimal point are shown.
+-- then exactly @d@ digits after the decimal point are shown.
+-- The result will always contain a decimal point even if
+-- there are no digits after.
 showGFloatAlt    :: (RealFloat a) => Maybe Int -> a -> ShowS
 showGFloatAlt d x =  showString (formatRealFloatAlt FFGeneric d x)
 
@@ -130,10 +136,10 @@ formatRealFloatAlt fmt decs x
           (ei,is') = roundTo base (dec' + e) is
           (ls,rs)  = splitAt (e+ei) (map intToDigit is')
          in
-         mk0 ls ++ (if null rs then "" else '.':rs)
+         mk0 ls ++ "." ++ rs
         else
          let
           (ei,is') = roundTo base dec' (replicate (-e) 0 ++ is)
           d:ds' = map intToDigit (if ei > 0 then is' else 0:is')
          in
-         d : (if null ds' then "" else '.':ds')
+         d : '.' : ds'

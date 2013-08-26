@@ -48,6 +48,9 @@ cabal-version:       >=1.8
 library
   -- Modules exported by the library.
   exposed-modules:     Text.Printf.Extensible
+
+  -- Modules included in this executable but not exported.
+  other-modules:       Text.Printf.Extensible.AltFloat
   
   -- Other library packages from which modules are imported.
   build-depends:       base >=4.5&&<5, containers >=0.4&&<1
@@ -60,4 +63,5 @@ executable printf-demo
   build-depends:       base >=4.5&&<5, containers >=0.4&&<1
 
   -- Modules included in this executable but not exported.
-  other-modules:       Text.Printf.Extensible
+  other-modules:       Text.Printf.Extensible,
+                       Text.Printf.Extensible.AltFloat
