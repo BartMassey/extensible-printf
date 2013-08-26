@@ -38,12 +38,12 @@ module Text.Printf.Extensible (
 -- For example:
 --
 -- > instance PrintfArg () where
--- >   toField x fmt | fmtChar fmt == 'u' =
+-- >   toField x fmt | fmtChar $ vFmt 'U' fmt == 'U' =
 -- >     formatString "()" (fmt { fmtChar = 's', fmtPrecision = Nothing })
--- >   toField _ _ = error "invalid format character"
+-- >   toField _ fmt = errorBadFormat $ fmtChar fmt
 -- >
 -- > main :: IO ()
--- > main = printf "<%-3.1u>\n" ()
+-- > main = printf "<%-3.1U>\n" ()
 --
 -- prints \"@<() >@\". Note the use of 'formatString' to
 -- take care of field formatting specifications in a convenient
@@ -52,6 +52,7 @@ module Text.Printf.Extensible (
    FieldFormatter,
    FieldFormat(..),
    FormatAdjustment(..), FormatSign(..),
+   vFmt,
 -- ** Handling Type-specific Modifiers
 --
 -- | In the unlikely case that modifier characters of
@@ -69,6 +70,14 @@ module Text.Printf.Extensible (
 -- a new type.
    formatString, formatChar, formatInt,
    formatInteger, formatRealFloat,
+-- ** Raising Errors
+--
+-- | These functions are used internally to raise various
+-- errors, and are exported for use by new type-specific
+-- formatters.
+  errorBadFormat, errorShortFormat, errorMissingArgument, 
+  errorBadArgument,
+  perror, 
 -- * Implementation Internals
 -- | These types are needed for implementing processing
 -- variable numbers of arguments to 'printf' and 'hPrintf'.
@@ -306,10 +315,6 @@ intModifierMap = fromList [
   ("l", toInteger (minBound :: Int32)),
   ("ll", toInteger (minBound :: Int64)),
   ("L", toInteger (minBound :: Int64)) ]
--- ("q", minBound :: Int64)
--- ("j", minBound :: "IntMax or UIntMax")
--- ("z", minBound :: "Size_T or SSize_T")
--- ("t", minBound :: "PtrDiff_T")
 
 parseIntFormat :: Integral a => a -> String -> FormatParse
 parseIntFormat _ s =
@@ -318,7 +323,7 @@ parseIntFormat _ s =
     Nothing ->
       case s of
         c : cs -> FormatParse "" c cs
-        "" -> fmterr
+        "" -> errorShortFormat
   where
     matchPrefix p _ m@(Just (FormatParse p0 _ _))
       | length p0 >= length p = m
@@ -331,7 +336,7 @@ parseIntFormat _ s =
       stripPrefix p s >>= fp
       where
         fp (c : cs) = Just $ FormatParse p c cs
-        fp "" = fmterr
+        fp "" = errorShortFormat
 
 -- | This is the type of a field formatter reified over its
 -- argument.
@@ -350,7 +355,7 @@ class PrintfArg a where
     toField :: a -> FieldFormatter
     parseFormat :: a -> ModifierParser
     parseFormat _ (c : cs) = FormatParse "" c cs
-    parseFormat _ "" = fmterr
+    parseFormat _ "" = errorShortFormat
 
 instance PrintfArg Int where
     toField = formatInt
@@ -411,7 +416,10 @@ instance PrintfArg Char where
 instance IsChar a => PrintfArg [a] where
     toField = formatString
 
--- Substitute the 'v' format character with a default.
+-- | Substitute a \'v\' format character with the given
+-- default format character in the 'FieldFormat'. A
+-- convenience for user-implemented types, which should
+-- support \"%v\".
 vFmt :: Char -> FieldFormat -> FieldFormat
 vFmt c ufmt@(FieldFormat {fmtChar = 'v'}) = ufmt {fmtChar = c}
 vFmt _ ufmt = ufmt
@@ -431,7 +439,7 @@ formatString x ufmt =
                where
                  trunc Nothing = x
                  trunc (Just n) = take n x
-    c   -> badfmterr c
+    c   -> errorBadFormat c
 
 -- Possibly apply the int modifiers to get a new
 -- int width for conversion.
@@ -442,7 +450,7 @@ fixupMods ufmt m =
     "" -> m
     _ -> case M.lookup mods intModifierMap of
       Just m0 -> Just m0
-      Nothing -> perror "internal error: unknown format modifier"
+      Nothing -> perror "unknown format modifier"
 
 -- | Formatter for 'Int' values.
 formatInt :: (Integral a, Bounded a) => a -> FieldFormatter
@@ -481,7 +489,7 @@ formatIntegral m x ufmt0 =
           fmtModifiers ufmt == "" ->
             formatString [chr $ fromIntegral x] (ufmt { fmtChar = 's' })
     'c' -> perror "illegal char conversion"
-    c   -> badfmterr c
+    c   -> errorBadFormat c
   where
     ufmt = vFmt 'd' $ case ufmt0 of
       FieldFormat { fmtPrecision = Just _, fmtAdjust = Just ZeroPad } ->
@@ -507,14 +515,14 @@ formatRealFloat x ufmt =
      'F' -> (adjustSigned ufmt (dfmt c prec alt x) ++)
      'g' -> (adjustSigned ufmt (dfmt c prec alt x) ++)
      'G' -> (adjustSigned ufmt (dfmt c prec alt x) ++)
-     _   -> badfmterr c
+     _   -> errorBadFormat c
 
 -- This is the type carried around for arguments in
 -- the varargs code.
 type UPrintf = (ModifierParser, FieldFormatter)
 
 -- Given a format string and a list of formatting functions
--- (the actual field value having already been baked into
+-- (the actual argument value having already been baked into
 -- each of these functions before delivery), return the
 -- actual formatted text string.
 uprintf :: String -> [UPrintf] -> String
@@ -525,9 +533,9 @@ uprintf s us = uprintfs s us ""
 -- misguided efficiency.
 uprintfs :: String -> [UPrintf] -> ShowS
 uprintfs ""       []       = id
-uprintfs ""       (_:_)    = fmterr
+uprintfs ""       (_:_)    = errorShortFormat
 uprintfs ('%':'%':cs) us   = ('%' :) . uprintfs cs us
-uprintfs ('%':_)  []       = argerr
+uprintfs ('%':_)  []       = errorMissingArgument
 uprintfs ('%':cs) us@(_:_) = fmt cs us
 uprintfs (c:cs)   us       = (c :) . uprintfs cs us
 
@@ -539,7 +547,7 @@ uprintfs (c:cs)   us       = (c :) . uprintfs cs us
 fmt :: String -> [UPrintf] -> ShowS
 fmt cs0 us0 =
   case getSpecs False False Nothing False cs0 us0 of
-    (_, _, []) -> argerr
+    (_, _, []) -> errorMissingArgument
     (ufmt, cs, (_, u) : us) -> u ufmt . uprintfs cs us
 
 -- Given field formatting information, and a tuple
@@ -604,7 +612,7 @@ fmtu b (Just pre) prec m i =
 fmtu b Nothing prec0 m0 i0 =
   case fmtu' prec0 m0 i0 of
     Just s -> ("", s)
-    Nothing -> baderr
+    Nothing -> errorBadArgument
   where
     fmtu' :: Maybe Int -> Maybe Integer -> Integer -> Maybe String
     fmtu' prec (Just m) i | i < 0 =
@@ -668,7 +676,7 @@ getSpecs l z s a ('*' : cs0) us =
       FormatParse ms c cs =
         case us'' of
           (ufmt, _) : _ -> ufmt cs''
-          [] -> argerr
+          [] -> errorMissingArgument
   in
    (FieldFormat {
        fmtWidth = Just (abs n),
@@ -685,7 +693,7 @@ getSpecs l z s a ('.' : cs0) us =
       FormatParse ms c cs =
         case us' of
           (ufmt, _) : _ -> ufmt cs'
-          [] -> argerr
+          [] -> errorMissingArgument
   in
    (FieldFormat {
        fmtWidth = Nothing,
@@ -707,7 +715,7 @@ getSpecs l z s a cs0@(c0 : _) us | isDigit c0 =
       FormatParse ms c cs =
         case us' of
           (ufmt, _) : _ -> ufmt cs''
-          [] -> argerr
+          [] -> errorMissingArgument
   in
    (FieldFormat {
        fmtWidth = Just (abs n),
@@ -721,7 +729,7 @@ getSpecs l z s a cs0@(_ : _) us =
   let FormatParse ms c cs =
         case us of
           (ufmt, _) : _ -> ufmt cs0
-          [] -> argerr
+          [] -> errorMissingArgument
   in
    (FieldFormat {
        fmtWidth = Nothing,
@@ -732,7 +740,7 @@ getSpecs l z s a cs0@(_ : _) us =
        fmtModifiers = ms,
        fmtChar = c}, cs, us)
 getSpecs _ _ _ _ ""       _  =
-  fmterr
+  errorShortFormat
 
 getStar :: [UPrintf] -> ([UPrintf], Int)
 getStar us =
@@ -745,7 +753,7 @@ getStar us =
         fmtModifiers = "",
         fmtChar = 'd' } in
   case us of
-    [] -> argerr
+    [] -> errorMissingArgument
     (_, nu) : us' -> (us', read (nu ufmt ""))
 
 dfmt :: (RealFloat a) => Char -> Maybe Int -> Bool -> a -> (String, String)
@@ -755,21 +763,31 @@ dfmt c p a d =
         'e' -> if a then showEFloatAlt else showEFloat
         'f' -> if a then showFFloatAlt else showFFloat
         'g' -> if a then showGFloatAlt else showGFloat
-        _   -> error "Printf.dfmt: impossible"
+        _   -> perror "internal error: impossible dfmt"
       result = caseConvert $ showFunction p d ""
   in
    case result of
      '-' : cs -> ("-", cs)
      cs       -> ("" , cs)
 
+
+-- | Raises an 'error' with a printf-specific prefix on the
+-- message string.
 perror :: String -> a
-perror s = error ("Printf.printf: "++s)
+perror s = error $ "printf: " ++ s
 
-badfmterr :: Char -> a
-badfmterr c =
-  perror $ "bad formatting char " ++ show c
+-- | Calls 'perror' to indicate an unknown format letter for
+-- a given type.
+errorBadFormat :: Char -> a
+errorBadFormat c = perror $ "bad formatting char " ++ show c
 
-fmterr, argerr, baderr :: a
-fmterr = perror "formatting string ended prematurely"
-argerr = perror "argument list ended prematurely"
-baderr = perror "bad argument"
+errorShortFormat, errorMissingArgument, errorBadArgument :: a
+-- | Calls 'perror' to indicate that the format string ended
+-- early.
+errorShortFormat = perror "formatting string ended prematurely"
+-- | Calls 'perror' to indicate that there is a missing
+-- argument in the argument list.
+errorMissingArgument = perror "argument list ended prematurely"
+-- | Calls 'perror' to indicate that there is a type
+-- error or similar in the given argument.
+errorBadArgument = perror "bad argument"

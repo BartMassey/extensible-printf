@@ -1,6 +1,5 @@
-* Make sure the right things are exported for easy extension.
-* Import the printf(3) manpage into the Haddock and edit it.
-  per-type format.
+* Walk the Haddock carefully to get a complete description.
+  (The Linux printf(3) manpage is under GPL??)
 * Fix RealFloat formatting to match printf standards
   (currently wontfix)
   * Fix standard floating formats
