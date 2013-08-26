@@ -1,4 +1,6 @@
 * Fix failed test 158: "% 014.4e" 8.6 does not zero-extend
+* Add "%v" formatting for all types to give a "natural"
+  per-type format.
 * Fix RealFloat formatting to match printf standards
   (currently wontfix)
   * Fix standard floating formats
