@@ -17,7 +17,7 @@
 -- A C @printf(3)@-like formatter. This version has been
 -- extended by Bart Massey as per the recommendations of
 -- John Meacham and Simon Marlow
--- <http://comments.gmane.org/gmane.comp.lang.haskell.libraries/4726>
+-- \<<http://comments.gmane.org/gmane.comp.lang.haskell.libraries/4726>\>
 -- to support extensible formatting for new datatypes.  It
 -- has also been extended to support almost all C
 -- @printf(3)@ syntax.
@@ -44,9 +44,9 @@ module Text.Printf.Extensible (
 -- >   toField _ fmt = errorBadFormat $ fmtChar fmt
 -- >
 -- > main :: IO ()
--- > main = printf "<%-3.1U>\n" ()
+-- > main = printf "[%-3.1U]\n" ()
 --
--- prints \"@<() >@\". Note the use of 'formatString' to
+-- prints \"@[() ]@\". Note the use of 'formatString' to
 -- take care of field formatting specifications in a convenient
 -- way.
    PrintfArg(..),
