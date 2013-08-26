@@ -154,6 +154,7 @@ import Text.Printf.Extensible.AltFloat
 -- >    %o           prefix with a leading 0 if needed
 -- >    %x           prefix with a leading 0x if nonzero
 -- >    %X           prefix with a leading 0X if nonzero
+-- >    %b           prefix with a leading 0b if nonzero
 -- >    %[eEfFgG]    ensure that the number contains a decimal point
 --
 -- Any flags are followed optionally by a field width:
@@ -199,6 +200,7 @@ import Text.Printf.Extensible.AltFloat
 -- >    o      octal                   Integral
 -- >    x      hexadecimal             Integral
 -- >    X      hexadecimal             Integral
+-- >    b      binary                  Integral
 -- >    u      unsigned decimal        Integral
 -- >    f      floating point          RealFloat
 -- >    F      floating point          RealFloat
@@ -534,6 +536,7 @@ formatIntegral m x ufmt0 =
     'i' -> (adjustSigned ufmt (fmti prec x) ++)
     'x' -> (adjust ufmt (fmtu 16 (alt "0x" x) prec m x) ++)
     'X' -> (adjust ufmt (upcase $ fmtu 16 (alt "0X" x) prec m x) ++)
+    'b' -> (adjust ufmt (fmtu 2 (alt "0b" x) prec m x) ++)
     'o' -> (adjust ufmt (fmtu 8 (alt "0" x) prec m x) ++)
     'u' -> (adjust ufmt (fmtu 10 Nothing prec m x) ++)
     'c' | x >= fromIntegral (ord (minBound :: Char)) &&
