@@ -1,5 +1,3 @@
-* Walk the Haddock carefully to get a complete description.
-  (The Linux printf(3) manpage is under GPL??)
 * Fix RealFloat formatting to match printf standards
   (currently wontfix)
   * Fix standard floating formats

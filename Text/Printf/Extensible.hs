@@ -14,12 +14,13 @@
 -- Stability   :  provisional
 -- Portability :  portable
 --
--- A C @printf(3)@-like formatter. This version has been extended by
--- Bart Massey as per the recommendations of John Meacham and
--- Simon Marlow
+-- A C @printf(3)@-like formatter. This version has been
+-- extended by Bart Massey as per the recommendations of
+-- John Meacham and Simon Marlow
 -- <http://comments.gmane.org/gmane.comp.lang.haskell.libraries/4726>
--- to support extensible formatting for new datatypes.
--- It has also been extended to support most C @printf(3)@ syntax.
+-- to support extensible formatting for new datatypes.  It
+-- has also been extended to support almost all C
+-- @printf(3)@ syntax.
 -----------------------------------------------------------------------------
 
 module Text.Printf.Extensible (
@@ -38,7 +39,7 @@ module Text.Printf.Extensible (
 -- For example:
 --
 -- > instance PrintfArg () where
--- >   toField x fmt | fmtChar $ vFmt 'U' fmt == 'U' =
+-- >   toField x fmt | fmtChar (vFmt 'U' fmt) == 'U' =
 -- >     formatString "()" (fmt { fmtChar = 's', fmtPrecision = Nothing })
 -- >   toField _ fmt = errorBadFormat $ fmtChar fmt
 -- >
@@ -106,15 +107,27 @@ import Text.Printf.Extensible.AltFloat
 -------------------
 
 -- | Format a variable number of arguments with the C-style formatting string.
--- The return value is either 'String' or @('IO' ())@.
+-- The return value is either 'String' or @('IO' a)@ (which
+-- should be @('IO' '()')@, but Haskell's type system
+-- makes this hard).
 --
--- The format string consists of ordinary characters and /conversion
--- specifications/, which specify how to format one of the arguments
--- to 'printf' in the output string. Unlike C @printf(3)@, the formatting
+-- The format string consists of ordinary characters and
+-- /conversion specifications/, which specify how to format
+-- one of the arguments to 'printf' in the output string. A
+-- format specification is introduced by the @%@ character;
+-- this character can be self-escaped into the format string
+-- using @%%@. A format specification ends with a /format
+-- character/ that provides the primary information about
+-- how to format the value. The rest of the conversion
+-- specification is optional.  In order, one may have flag
+-- characters, a width specifier, a precision specifier, and
+-- type-specific modifier characters.
+--
+-- Unlike C @printf(3)@, the formatting of this 'printf'
 -- is driven by the argument type; formatting is type specific. The
 -- types formatted by 'printf' \"out of the box\" are:
 --
---   * 'Integral' types, including 'Char': 'printf' makes no real distinction
+--   * 'Integral' types, including 'Char'
 --
 --   * 'String'
 --
@@ -123,7 +136,7 @@ import Text.Printf.Extensible.AltFloat
 -- 'printf' is also extensible to support other types: see below.
 --
 -- A conversion specification begins with the
--- character @%@, followed by one or more of the following flags:
+-- character @%@, followed by zero or more of the following flags:
 --
 -- >    -      left adjust (default is right adjust)
 -- >    +      always use a sign (+ or -) for signed conversions
@@ -132,33 +145,45 @@ import Text.Printf.Extensible.AltFloat
 -- >    #      use an \"alternate form\": see below
 --
 -- When both flags are given, @-@ overrides @0@ and @+@ overrides space.
+-- A negative width specifier in a @*@ conversion is treated as
+-- positive but implies the left adjust flag.
 --
 -- The \"alternate form\" for unsigned radix conversions is
 -- as in C @printf(3)@:
 --
--- >    %o     prefix with a leading 0 if not already zero
--- >    %x     prefix with a leading 0x
--- >    %X     prefix with a leading 0X
---
--- An alternate form for 'RealFloat' conversions is silently
--- ignored: the differences in floating point formatting
--- from C @printf(3)@ noted below make it difficult to
--- do anything sensible.
+-- >    %o           prefix with a leading 0 if needed
+-- >    %x           prefix with a leading 0x if nonzero
+-- >    %X           prefix with a leading 0X if nonzero
+-- >    %[eEfFgG]    ensure that the number contains a decimal point
 --
 -- Any flags are followed optionally by a field width:
 --
 -- >    num    field width
 -- >    *      as num, but taken from argument list
 --
--- followed optionally by a precision:
+-- The field width is a minimum, not a maximum: it will be
+-- expanded as needed to avoid mutilating a value.
+-- 
+-- Any field width is followed optionally by a precision:
 --
--- >    .num   precision (number of decimal places)
+-- >    .num   precision
 -- >    .      same as .0
 -- >    .*     as num, but taken from argument list
+-- 
+-- Negative precision is taken as 0. The meaning of the
+-- precision depends on the conversion type.
 --
--- followed optionally for Integral types by a width
--- specifier; the only use of this specifier being to set
--- the implicit size of the operand for conversion of
+-- >    Integral    minimum number of digits to show
+-- >    RealFloat   number of digits after the decimal point
+-- >    String      maximum number of characters
+--
+-- The precision for Integral types is accomplished by zero-padding.
+-- If both precision and zero-pad are given for an Integral field,
+-- the zero-pad is ignored.
+--
+-- Any precision is followed optionally for Integral types
+-- by a width modifier; the only use of this modifier being
+-- to set the implicit size of the operand for conversion of
 -- a negative operand to unsigned:
 --
 -- >    hh     Int8
@@ -167,7 +192,7 @@ import Text.Printf.Extensible.AltFloat
 -- >    ll     Int64
 -- >    L      Int64
 --
--- and finally, ending with a format character:
+-- The specification ends with a format character:
 --
 -- >    c      character               Integral
 -- >    d      decimal                 Integral
@@ -182,6 +207,19 @@ import Text.Printf.Extensible.AltFloat
 -- >    e      exponent format float   RealFloat
 -- >    E      exponent format float   RealFloat
 -- >    s      string                  String
+-- >    v      default format          any type
+--
+-- The \"%v\" specifier is provided for all built-in types,
+-- and should be provided for user-defined type formatters
+-- as well. It picks a \"best\" representation for the given
+-- type. For the built-in types the \"%v\" specifier is
+-- converted as follows:
+--
+-- >    c      Char
+-- >    u      other unsigned Integral
+-- >    d      other signed Integral
+-- >    g      RealFloat
+-- >    s      String
 --
 -- Mismatch between the argument types and the format
 -- string, as well as any other syntactic or semantic errors
@@ -189,11 +227,26 @@ import Text.Printf.Extensible.AltFloat
 -- thrown at runtime.
 --
 -- Note that the formatting for 'RealFloat' types is
--- currently quite different from that of C @printf(3)@,
+-- currently a bit different from that of C @printf(3)@,
 -- conforming instead to 'Numeric.showEFloat',
 -- 'Numeric.showFFloat' and 'Numeric.showGFloat'. This is
--- hard to fix, and the fixed versions would format in a
--- backward-incompatible way.
+-- hard to fix, the fixed versions would format in a
+-- backward-incompatible way, and in any case the Haskell
+-- behavior is generally more sensible than the C behavior.
+-- A brief summary of some key differences:
+--
+-- * Haskell 'printf' never uses the default \"6-digit\" precision
+--   used by C printf.
+--
+-- * Haskell 'printf' treats the \"precision\" specifier as
+--   indicating the number of digits after the decimal point.
+-- 
+-- * Haskell 'printf' prints the exponent of e-format
+--   numbers without a gratuitous plus sign, and with the
+--   minimum possible number of digits.
+--
+-- * Haskell 'printf' will place a zero after a decimal point when
+--   possible.
 --
 -- Examples:
 --
@@ -208,7 +261,7 @@ printf :: (PrintfType r) => String -> r
 printf fmts = spr fmts []
 
 -- | Similar to 'printf', except that output is via the specified
--- 'Handle'.  The return type is restricted to @('IO' ())@.
+-- 'Handle'.  The return type is restricted to @('IO' a)@.
 hPrintf :: (HPrintfType r) => Handle -> String -> r
 hPrintf hdl fmts = hspr hdl fmts []
 
