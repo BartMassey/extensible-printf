@@ -95,7 +95,6 @@ import Prelude
 import Data.Char
 import Data.Int
 import Data.List
-import Data.Map as M hiding (adjust, map)
 import Data.Word
 import Numeric
 import System.IO
@@ -438,8 +437,8 @@ data FormatParse = FormatParse {
 
 -- Contains the "modifier letters" that can precede an
 -- integer type.
-intModifierMap :: Map String Integer
-intModifierMap = fromList [
+intModifierMap :: [(String, Integer)]
+intModifierMap = [
   ("hh", toInteger (minBound :: Int8)),
   ("h", toInteger (minBound :: Int16)),
   ("l", toInteger (minBound :: Int32)),
@@ -448,19 +447,19 @@ intModifierMap = fromList [
 
 parseIntFormat :: Integral a => a -> String -> FormatParse
 parseIntFormat _ s =
-  case foldrWithKey matchPrefix Nothing intModifierMap of
+  case foldr matchPrefix Nothing intModifierMap of
     Just m -> m
     Nothing ->
       case s of
         c : cs -> FormatParse "" c cs
         "" -> errorShortFormat
   where
-    matchPrefix p _ m@(Just (FormatParse p0 _ _))
+    matchPrefix (p, _) m@(Just (FormatParse p0 _ _))
       | length p0 >= length p = m
       | otherwise = case getFormat p of
           Nothing -> m
           Just fp -> Just fp
-    matchPrefix p _ Nothing =
+    matchPrefix (p, _) Nothing =
       getFormat p
     getFormat p =
       stripPrefix p s >>= fp
@@ -508,7 +507,7 @@ fixupMods ufmt m =
   let mods = fmtModifiers ufmt in
   case mods of
     "" -> m
-    _ -> case M.lookup mods intModifierMap of
+    _ -> case lookup mods intModifierMap of
       Just m0 -> Just m0
       Nothing -> perror "unknown format modifier"
 
