@@ -1,8 +1,5 @@
-{-# LANGUAGE CPP #-}
-#if __GLASGOW_HASKELL__ >= 702
 {-# LANGUAGE Safe #-}
-#endif
-{- Thanks to http://stackoverflow.com/questions/11171325/ for the above. -}
+{-# LANGUAGE CPP #-}
 
 -----------------------------------------------------------------------------
 -- |
@@ -10,7 +7,7 @@
 -- Copyright   :  (c) Lennart Augustsson and Bart Massey 2013
 -- License     :  BSD-style (see the file LICENSE in this distribution)
 --
--- Maintainer  :  bart@cs.pdx.edu
+-- Maintainer  :  Bart Massey <bart@cs.pdx.edu>
 -- Stability   :  provisional
 -- Portability :  portable
 --
@@ -23,7 +20,7 @@
 -- @printf(3)@ syntax.
 -----------------------------------------------------------------------------
 
-module Text.Printf.Extensible (
+module Text.Printf.Extensible(
 -- * Printing Functions
    printf, hPrintf,
 -- * Extending To New Types
@@ -97,10 +94,10 @@ module Text.Printf.Extensible (
 import Prelude
 import Data.Char
 import Data.Int
-import Data.List (stripPrefix)
+import Data.List
 import Data.Map as M hiding (adjust, map)
 import Data.Word
-import Numeric(showEFloat, showFFloat, showGFloat, showIntAtBase)
+import Numeric
 import System.IO
 import Text.Printf.Extensible.AltFloat
 
@@ -267,43 +264,39 @@ printf fmts = spr fmts []
 hPrintf :: (HPrintfType r) => Handle -> String -> r
 hPrintf hdl fmts = hspr hdl fmts []
 
--- | The 'PrintfType' class provides the variable argument magic for
--- 'printf'.
+-- |The 'PrintfType' class provides the variable argument magic for
+-- 'printf'.  Its implementation is intentionally not visible from
+-- this module. If you attempt to pass an argument of a type which
+-- is not an instance of this class to 'printf' or 'hPrintf', then
+-- the compiler will report it as a missing instance of 'PrintfArg'.
 class PrintfType t where
     spr :: String -> [UPrintf] -> t
 
 -- | The 'HPrintfType' class provides the variable argument magic for
--- 'hPrintf'.
+-- 'hPrintf'.  Its implementation is intentionally not visible from
+-- this module.
 class HPrintfType t where
     hspr :: Handle -> String -> [UPrintf] -> t
 
--- | This class, with only the one instance, is used as
--- a workaround for the fact that 'String', as a concrete
--- type, is not allowable as a typeclass instance. 'IsChar'
--- is exported for backward-compatibility.
-class IsChar a where
-  toChar :: a -> Char
-  fromChar :: Char -> a
-
-instance IsChar Char where
-  toChar c = c
-  fromChar c = c
-
-instance IsChar a => PrintfType [a] where
-    spr fmts args = map fromChar $ uprintf fmts $ reverse args
+{- not allowed in Haskell 2010
+instance PrintfType String where
+    spr fmt args = uprintf fmt (reverse args)
+-}
+instance (IsChar c) => PrintfType [c] where
+    spr fmts args = map fromChar (uprintf fmts (reverse args))
 
 -- Note that this should really be (IO ()), but GHC's
 -- type system won't readily let us say that even
 -- with extensions AFAICT.
 instance PrintfType (IO a) where
     spr fmts args = do
-      putStr $ map fromChar $ uprintf fmts $ reverse args
-      return undefined
+        putStr $ map fromChar $ uprintf fmts $ reverse args
+        return (error "PrintfType (IO a): result should not be used.")
 
 instance HPrintfType (IO a) where
     hspr hdl fmts args = do
-      hPutStr hdl $ uprintf fmts $ reverse args
-      return undefined
+        hPutStr hdl (uprintf fmts (reverse args))
+        return (error "HPrintfType (IO a): result should not be used.")
 
 instance (PrintfArg a, PrintfType r) => PrintfType (a -> r) where
     spr fmts args = \ a -> spr fmts
@@ -312,6 +305,88 @@ instance (PrintfArg a, PrintfType r) => PrintfType (a -> r) where
 instance (PrintfArg a, HPrintfType r) => HPrintfType (a -> r) where
     hspr hdl fmts args = \ a -> hspr hdl fmts
                                   ((parseFormat a, toField a) : args)
+
+-- | Typeclass of 'printf'-formattable values. The 'toField' method
+-- takes a value and a field format descriptor and either fails due
+-- to a bad descriptor or produces a 'ShowS' as the result. The
+-- default 'parseFormat' expects no modifiers: this is the normal
+-- case. Minimal instance: 'toField'.
+class PrintfArg a where
+    toField :: a -> FieldFormatter
+    parseFormat :: a -> ModifierParser
+    parseFormat _ (c : cs) = FormatParse "" c cs
+    parseFormat _ "" = errorShortFormat
+
+instance PrintfArg Char where
+    toField = formatChar
+    parseFormat _ cf = parseIntFormat (undefined :: Int) cf
+
+instance (IsChar c) => PrintfArg [c] where
+    toField = formatString
+
+instance PrintfArg Int where
+    toField = formatInt
+    parseFormat = parseIntFormat
+
+instance PrintfArg Int8 where
+    toField = formatInt
+    parseFormat = parseIntFormat
+
+instance PrintfArg Int16 where
+    toField = formatInt
+    parseFormat = parseIntFormat
+
+instance PrintfArg Int32 where
+    toField = formatInt
+    parseFormat = parseIntFormat
+
+instance PrintfArg Int64 where
+    toField = formatInt
+    parseFormat = parseIntFormat
+
+instance PrintfArg Word where
+    toField = formatInt
+    parseFormat = parseIntFormat
+
+instance PrintfArg Word8 where
+    toField = formatInt
+    parseFormat = parseIntFormat
+
+instance PrintfArg Word16 where
+    toField = formatInt
+    parseFormat = parseIntFormat
+
+instance PrintfArg Word32 where
+    toField = formatInt
+    parseFormat = parseIntFormat
+
+instance PrintfArg Word64 where
+    toField = formatInt
+    parseFormat = parseIntFormat
+
+instance PrintfArg Integer where
+    toField = formatInteger
+    parseFormat = parseIntFormat
+
+instance PrintfArg Float where
+    toField = formatRealFloat
+
+instance PrintfArg Double where
+    toField = formatRealFloat
+
+-- | This class, with only the one instance, is used as
+-- a workaround for the fact that 'String', as a concrete
+-- type, is not allowable as a typeclass instance. 'IsChar'
+-- is exported for backward-compatibility.
+class IsChar c where
+    toChar :: c -> Char
+    fromChar :: Char -> c
+
+instance IsChar Char where
+    toChar c = c
+    fromChar c = c
+
+-------------------
 
 -- | Whether to left-adjust or zero-pad a field. These are
 -- mutually exclusive, with 'LeftAdjust' taking precedence.
@@ -400,76 +475,6 @@ type FieldFormatter = FieldFormat -> ShowS
 -- | Type of a function that will parse modifier characters
 -- from the format string.
 type ModifierParser = String -> FormatParse
-
--- | Typeclass of 'printf'-formattable values. The 'toField' method
--- takes a value and a field format descriptor and either fails due
--- to a bad descriptor or produces a 'ShowS' as the result. The
--- default 'parseFormat' expects no modifiers: this is the normal
--- case. Minimal instance: 'toField'.
-class PrintfArg a where
-    toField :: a -> FieldFormatter
-    parseFormat :: a -> ModifierParser
-    parseFormat _ (c : cs) = FormatParse "" c cs
-    parseFormat _ "" = errorShortFormat
-
-instance PrintfArg Int where
-    toField = formatInt
-    parseFormat = parseIntFormat
-
-instance PrintfArg Int8 where
-    toField = formatInt
-    parseFormat = parseIntFormat
-
-instance PrintfArg Int16 where
-    toField = formatInt
-    parseFormat = parseIntFormat
-
-instance PrintfArg Int32 where
-    toField = formatInt
-    parseFormat = parseIntFormat
-
-instance PrintfArg Int64 where
-    toField = formatInt
-    parseFormat = parseIntFormat
-
-#ifndef __NHC__
-instance PrintfArg Word where
-    toField = formatInt
-    parseFormat = parseIntFormat
-#endif
-
-instance PrintfArg Word8 where
-    toField = formatInt
-    parseFormat = parseIntFormat
-
-instance PrintfArg Word16 where
-    toField = formatInt
-    parseFormat = parseIntFormat
-
-instance PrintfArg Word32 where
-    toField = formatInt
-    parseFormat = parseIntFormat
-
-instance PrintfArg Word64 where
-    toField = formatInt
-    parseFormat = parseIntFormat
-
-instance PrintfArg Integer where
-    toField = formatInteger
-    parseFormat = parseIntFormat
-
-instance PrintfArg Float where
-    toField = formatRealFloat
-
-instance PrintfArg Double where
-    toField = formatRealFloat
-
-instance PrintfArg Char where
-    toField = formatChar
-    parseFormat _ cf = parseIntFormat (undefined :: Int) cf
-
-instance IsChar a => PrintfArg [a] where
-    toField = formatString
 
 -- | Substitute a \'v\' format character with the given
 -- default format character in the 'FieldFormat'. A
@@ -708,6 +713,7 @@ adjustment w p l z =
     adjl _ False True = Just ZeroPad
     adjl _ _ _ = Nothing
 
+-- Parse the various format controls to get a format specification.
 getSpecs :: Bool -> Bool -> Maybe FormatSign -> Bool -> String -> [UPrintf]
          -> (FieldFormat, String, [UPrintf])
 getSpecs _ z s a ('-' : cs0) us = getSpecs True z s a cs0 us
@@ -798,6 +804,7 @@ getSpecs l z s a cs0@(_ : _) us =
 getSpecs _ _ _ _ ""       _  =
   errorShortFormat
 
+-- Process a star argument in a format specification.
 getStar :: [UPrintf] -> ([UPrintf], Int)
 getStar us =
   let ufmt = FieldFormat {
@@ -812,6 +819,7 @@ getStar us =
     [] -> errorMissingArgument
     (_, nu) : us' -> (us', read (nu ufmt ""))
 
+-- Format a RealFloat value.
 dfmt :: (RealFloat a) => Char -> Maybe Int -> Bool -> a -> (String, String)
 dfmt c p a d =
   let caseConvert = if isUpper c then map toUpper else id
