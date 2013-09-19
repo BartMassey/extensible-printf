@@ -1,6 +1,12 @@
 # Extensible-Printf
 Copyright © 2013 Bart Massey
 
+*XXX This package is deprecated as of 2013-09-18. The good
+news is that it is deprecated because it is expected to
+replace `Text.Printf` in GHC 7.8. So feel free to try it out
+from here, but expect to use it from there in the very near
+future.*
+
 This is a filled-out Haskell `Text.Printf` implementation
 enhanced to allow extending `printf` to new datatypes. It
 was originally inspired by my need for such a thing, and by
